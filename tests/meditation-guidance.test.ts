@@ -372,7 +372,7 @@ export function run(): void {
 
     // And the seated sessions do get the upright check they can honestly use.
     const seated = meditationSessions.filter((a) => a.id !== 'ten-minute-body-scan');
-    check('the two seated meditations exist', seated.length === 2);
+    check('the seated meditations exist', seated.length === 5);
     for (const activity of seated) {
       const cameraSteps = activity.steps.filter((s) => s.cameraConfigId !== undefined);
       check(`${activity.id} has a camera step`, cameraSteps.length > 0);

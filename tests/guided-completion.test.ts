@@ -12,7 +12,7 @@ import {
   createSessionStore,
   type KeyValueStore,
 } from '../src/exercise/session-store';
-import type { LandmarkEventPayload, PoseLandmarkName } from '../../NOVEN/modules/pose-tracker';
+import type { LandmarkEventPayload, PoseLandmarkName } from '../modules/pose-tracker';
 
 /**
  * ============================================================================

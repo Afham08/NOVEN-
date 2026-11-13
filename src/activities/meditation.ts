@@ -152,4 +152,111 @@ export const meditationSessions: readonly GuidedActivity[] = [
     safetyNote:
       'Lying down on your back is fine, but not on a bed if you would be unable to turn over. Stop at any point.',
   }),
+
+  defineGuidedActivity({
+    id: 'seated-gentle-breathing',
+    kind: 'meditation',
+    name: '2-Minute Gentle Breathing',
+    summary: 'A short seated breathing break designed for easy relaxation',
+    progressNoun: 'stages',
+    steps: [
+      {
+        seconds: 20,
+        title: 'Settle',
+        guidance:
+          'Sit back comfortably in your chair with your feet flat on the floor. Rest your hands in your lap.',
+        cameraConfigId: 'meditation-posture',
+        postureExpectation: 'seated-upright',
+      },
+      {
+        seconds: 80,
+        title: 'Gentle Breath',
+        guidance:
+          'Breathe in slowly through your nose and breathe out gently. Follow the circle on screen.',
+        breathingTechniqueId: 'gentle-breathing',
+      },
+      {
+        seconds: 20,
+        title: 'Quiet Rest',
+        guidance: 'Let your breathing return to its own natural rhythm and sit quietly.',
+      },
+    ],
+    safetyNote:
+      'Keep this seated in a sturdy chair. Stop if you feel dizzy or lightheaded, and return to your natural breathing.',
+  }),
+
+  defineGuidedActivity({
+    id: 'seated-body-relaxation',
+    kind: 'meditation',
+    name: '3-Minute Seated Body Relaxation',
+    summary: 'A soothing seated body relaxation to ease tension from head to toe',
+    progressNoun: 'stages',
+    steps: [
+      {
+        seconds: 20,
+        title: 'Settle',
+        guidance:
+          'Sit comfortably against the back of your chair. Let your eyes close or look softly downward.',
+        cameraConfigId: 'meditation-posture',
+        postureExpectation: 'seated-upright',
+      },
+      {
+        seconds: 50,
+        title: 'Shoulders and Hands',
+        guidance: 'Let your shoulders drop away from your ears. Soften your hands and fingers.',
+      },
+      {
+        seconds: 60,
+        title: 'Back and Legs',
+        guidance:
+          'Feel the chair supporting your back and thighs. Let your legs feel heavy and supported.',
+      },
+      {
+        seconds: 50,
+        title: 'Peaceful Rest',
+        guidance:
+          'Notice your jaw and forehead softening. Rest here quietly until the timer ends.',
+      },
+    ],
+    safetyNote:
+      'Stay comfortably seated throughout. Open your eyes or take a pause whenever you wish.',
+  }),
+
+  defineGuidedActivity({
+    id: 'seated-peaceful-mind',
+    kind: 'meditation',
+    name: '5-Minute Peaceful Mind',
+    summary: 'Five unhurried minutes of gentle breath and peaceful reflection',
+    progressNoun: 'stages',
+    steps: [
+      {
+        seconds: 25,
+        title: 'Settle',
+        guidance:
+          'Find a comfortable seated position. Rest your hands gently on your knees or lap.',
+        cameraConfigId: 'meditation-posture',
+        postureExpectation: 'seated-upright',
+      },
+      {
+        seconds: 80,
+        title: 'Easy Breathing',
+        guidance: 'Follow the gentle breathing rhythm at your own comfortable pace.',
+        breathingTechniqueId: 'easy-rhythm',
+      },
+      {
+        seconds: 135,
+        title: 'Quiet Gratitude',
+        guidance:
+          'Bring to mind one simple thing, person, or moment you feel grateful for today.',
+      },
+      {
+        seconds: 60,
+        title: 'Gentle Return',
+        guidance:
+          'Slowly notice the room around you and wiggle your fingers and toes before opening your eyes.',
+      },
+    ],
+    safetyNote:
+      'Sit in a supportive chair with feet flat. Take a break at any point if you feel uneasy.',
+  }),
 ];
