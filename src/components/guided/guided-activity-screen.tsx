@@ -135,6 +135,8 @@ export function GuidedActivityScreen({ activity }: GuidedActivityScreenProps) {
 
   const running = snapshot.phase === 'running';
 
+  const isMeditation = activity.kind === 'meditation';
+
   /**
    * Voice guidance is the SAME controller the exercise session uses — one speech
    * pipeline for the whole app, injected with the same expo-speech sink, so there
@@ -153,13 +155,15 @@ export function GuidedActivityScreen({ activity }: GuidedActivityScreenProps) {
   const voiceRef = useRef<VoiceFeedbackController | null>(null);
 
   useEffect(() => {
-    const voice = new VoiceFeedbackController(createExpoSpeechSink());
+    const voice = new VoiceFeedbackController(
+      createExpoSpeechSink(isMeditation ? { profile: 'calm' } : undefined),
+    );
     voiceRef.current = voice;
     return () => {
       voice.dispose();
       if (voiceRef.current === voice) voiceRef.current = null;
     };
-  }, []);
+  }, [isMeditation]);
 
   /**
    * The optional ambient bed, resolved through `ambientAudioFor` so that only a
@@ -313,9 +317,6 @@ export function GuidedActivityScreen({ activity }: GuidedActivityScreenProps) {
 
   /** Whether we're currently on a camera-tracked step of either kind. */
   const isCameraStep = currentStepConfig !== undefined || isPoseStep;
-
-  /** Whether the current activity is meditation (for camera HUD customization). */
-  const isMeditation = activity.kind === 'meditation';
 
   /**
    * Posture check toggle for meditation sessions.
@@ -1790,6 +1791,8 @@ const styles = StyleSheet.create({
   },
   ambientControl: {
     alignSelf: 'flex-start',
+    minHeight: 52,
+    justifyContent: 'center',
   },
   ambientNote: {
     ...Type.label,

@@ -1,5 +1,43 @@
 import { defineGuidedActivity, type GuidedActivity } from './types';
 
+// In Node test runner, hook module resolution for static audio assets
+if (typeof require !== 'undefined') {
+  try {
+    // eslint-disable-next-line @typescript-eslint/no-require-imports
+    const Module = require('module') as {
+      _resolveFilename?: (request: string, ...args: unknown[]) => string;
+      __oggHooked?: boolean;
+    };
+    if (Module && Module._resolveFilename && !Module.__oggHooked) {
+      Module.__oggHooked = true;
+      const origResolve = Module._resolveFilename;
+      Module._resolveFilename = function (request: string, ...args: unknown[]) {
+        if (typeof request === 'string' && request.endsWith('.ogg')) {
+          return request;
+        }
+        return origResolve.call(this, request, ...args);
+      };
+      const reqWithExt = require as {
+        extensions?: Record<string, (module: { exports: unknown }) => void>;
+      };
+      if (reqWithExt.extensions && !reqWithExt.extensions['.ogg']) {
+        reqWithExt.extensions['.ogg'] = (module) => {
+          module.exports = 1;
+        };
+      }
+    }
+  } catch {
+    // Intentionally swallowed in React Native / Metro
+  }
+}
+
+// eslint-disable-next-line @typescript-eslint/no-require-imports
+const WAVES_AUDIO = require('../../assets/Audiomusics/waves.ogg') as number;
+// eslint-disable-next-line @typescript-eslint/no-require-imports
+const RAIN_AUDIO = require('../../assets/Audiomusics/rain.ogg') as number;
+// eslint-disable-next-line @typescript-eslint/no-require-imports
+const BIRDS_AUDIO = require('../../assets/Audiomusics/birds.ogg') as number;
+
 /**
  * Meditation sessions: a timer, a few stages, and nothing else.
  *
@@ -159,6 +197,7 @@ export const meditationSessions: readonly GuidedActivity[] = [
     name: '2-Minute Gentle Breathing',
     summary: 'A short seated breathing break designed for easy relaxation',
     progressNoun: 'stages',
+    ambientAudio: { source: WAVES_AUDIO, volume: 0.28 },
     steps: [
       {
         seconds: 20,
@@ -191,6 +230,7 @@ export const meditationSessions: readonly GuidedActivity[] = [
     name: '3-Minute Seated Body Relaxation',
     summary: 'A soothing seated body relaxation to ease tension from head to toe',
     progressNoun: 'stages',
+    ambientAudio: { source: RAIN_AUDIO, volume: 0.28 },
     steps: [
       {
         seconds: 20,
@@ -228,6 +268,7 @@ export const meditationSessions: readonly GuidedActivity[] = [
     name: '5-Minute Peaceful Mind',
     summary: 'Five unhurried minutes of gentle breath and peaceful reflection',
     progressNoun: 'stages',
+    ambientAudio: { source: BIRDS_AUDIO, volume: 0.28 },
     steps: [
       {
         seconds: 25,
@@ -258,5 +299,75 @@ export const meditationSessions: readonly GuidedActivity[] = [
     ],
     safetyNote:
       'Sit in a supportive chair with feet flat. Take a break at any point if you feel uneasy.',
+  }),
+
+  defineGuidedActivity({
+    id: 'bedtime-wind-down',
+    kind: 'meditation',
+    name: '3-Minute Bedtime Wind-Down',
+    summary: 'A gentle lying-down rest with soft rain sounds to help you unwind before sleep',
+    progressNoun: 'stages',
+    ambientAudio: { source: RAIN_AUDIO, volume: 0.25 },
+    steps: [
+      {
+        seconds: 20,
+        title: 'Get Comfortable',
+        guidance:
+          'Lie down comfortably on your bed or recliner. Let your arms rest loosely by your sides.',
+        cameraConfigId: 'meditation-posture',
+        postureExpectation: 'in-frame',
+      },
+      {
+        seconds: 80,
+        title: 'Slow Nighttime Breath',
+        guidance: 'Breathe in slowly and let each breath out feel longer and softer.',
+        breathingTechniqueId: 'gentle-breathing',
+      },
+      {
+        seconds: 80,
+        title: 'Heavy Restful Body',
+        guidance:
+          'Let the bed support your entire body. Allow your shoulders, legs, and face to feel heavy and still.',
+      },
+    ],
+    safetyNote:
+      'Practice lying down in a safe, comfortable place where you will not roll off. Stop anytime if you feel uncomfortable.',
+  }),
+
+  defineGuidedActivity({
+    id: 'open-eyes-sound-awareness',
+    kind: 'meditation',
+    name: '3-Minute Open-Eyes Sound Awareness',
+    summary: 'Eyes-open listening meditation with gentle nature sounds for daytime calm',
+    progressNoun: 'stages',
+    ambientAudio: { source: BIRDS_AUDIO, volume: 0.32 },
+    steps: [
+      {
+        seconds: 20,
+        title: 'Soft Gaze',
+        guidance:
+          'Keep your eyes gently open and let your gaze rest on one comfortable spot in the room.',
+      },
+      {
+        seconds: 60,
+        title: 'Nearby Sounds',
+        guidance:
+          'Listen to the gentle nature sounds and any soft sounds close to you, without needing to label them.',
+      },
+      {
+        seconds: 60,
+        title: 'Distant Sounds',
+        guidance:
+          'Widen your listening to notice sounds further away in your home or outside.',
+      },
+      {
+        seconds: 40,
+        title: 'Easy Return',
+        guidance:
+          'Take one easy breath, notice the room around you, and move gently when you are ready.',
+      },
+    ],
+    safetyNote:
+      'Keep your eyes comfortably open throughout. Lower the sound volume or stop at any point if you wish.',
   }),
 ];

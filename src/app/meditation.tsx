@@ -21,25 +21,32 @@ export default function MeditationScreen() {
   const theme = useTheme();
   const allSessions = guidedCatalog('meditation');
 
-  const seatedIds = ['seated-gentle-breathing', 'seated-body-relaxation', 'seated-peaceful-mind'];
-  const seatedSessions = allSessions.filter((s) => seatedIds.includes(s.id));
-  const otherSessions = allSessions.filter((s) => !seatedIds.includes(s.id));
+  const seniorIds = [
+    'seated-gentle-breathing',
+    'seated-body-relaxation',
+    'seated-peaceful-mind',
+    'bedtime-wind-down',
+    'open-eyes-sound-awareness',
+  ];
+  const seniorSessions = allSessions.filter((s) => seniorIds.includes(s.id));
+  const otherSessions = allSessions.filter((s) => !seniorIds.includes(s.id));
 
   return (
     <Screen contentStyle={styles.content}>
       <Card variant="tint" style={styles.introCard}>
         <Text style={[styles.introTitle, { color: theme.heading }]}>
-          Gentle Seated Meditation
+          Gentle Seated & Rest Meditation
         </Text>
         <Text style={[styles.introBody, { color: theme.text }]}>
-          Relax comfortably in your favorite chair. These gentle sessions feature slow, natural
-          breathing and quiet mindfulness designed for older adults. Camera posture guidance is
-          available if you wish, or you can simply close your eyes and listen.
+          Relax comfortably in your favorite chair or resting spot. These gentle sessions feature
+          slow, natural breathing, soft nature soundscapes, and quiet mindfulness designed for older
+          adults. Camera posture guidance is available if you wish, or you can simply close your
+          eyes and listen.
         </Text>
       </Card>
 
-      <SectionHeader accent title="Seated Meditations (2–5 Min)" />
-      {seatedSessions.map((session) => (
+      <SectionHeader accent title="Seated & Rest Meditations (2–5 Min)" />
+      {seniorSessions.map((session) => (
         <ActivityCard
           key={session.id}
           title={session.name}

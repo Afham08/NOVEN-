@@ -337,6 +337,19 @@ export class VoiceFeedbackController {
  */
 const COMPLETION_TALLY_POLICY: KindPolicy = { ...POLICY.completed, interrupt: false };
 
+export const CALM_VOICE_RATE = 0.88;
+export const CALM_VOICE_PITCH = 1.10;
+export const STANDARD_VOICE_RATE = 0.95;
+export const STANDARD_VOICE_PITCH = 1.00;
+
+export type SpeechVoiceProfile = 'standard' | 'calm' | 'meditation';
+
+export type SpeechSinkOptions = {
+  profile?: SpeechVoiceProfile;
+  rate?: number;
+  pitch?: number;
+};
+
 /**
  * expo-speech is imported lazily and defensively. The module is only touched on
  * the first utterance so that a missing native module degrades to a silent
@@ -346,6 +359,7 @@ const COMPLETION_TALLY_POLICY: KindPolicy = { ...POLICY.completed, interrupt: fa
 type SpeechModule = {
   speak(text: string, options?: Record<string, unknown>): void;
   stop(): Promise<void> | void;
+  getAvailableVoicesAsync?: () => Promise<{ identifier: string; name?: string; language?: string }[]>;
 };
 
 let speechModule: SpeechModule | null | undefined;
@@ -361,24 +375,62 @@ function loadSpeech(): SpeechModule | null {
   return speechModule;
 }
 
+let preferredCalmVoiceIdentifier: string | undefined;
+let voiceSearchInitiated = false;
+
+function resolveCalmVoice(speech: SpeechModule): void {
+  if (voiceSearchInitiated || typeof speech.getAvailableVoicesAsync !== 'function') return;
+  voiceSearchInitiated = true;
+  speech.getAvailableVoicesAsync().then((voices) => {
+    if (!Array.isArray(voices)) return;
+    const enVoices = voices.filter(
+      (v) => typeof v.language === 'string' && v.language.toLowerCase().startsWith('en'),
+    );
+    const preferred = enVoices.find((v) =>
+      /female|samantha|karen|moira|serena|fiona|victoria|zira|natural/i.test(
+        `${v.name ?? ''} ${v.identifier ?? ''}`,
+      ),
+    ) ?? enVoices[0];
+    if (preferred?.identifier) {
+      preferredCalmVoiceIdentifier = preferred.identifier;
+    }
+  }).catch(() => {
+    // Intentionally swallowed — platform lacks voice enum or permission denied.
+  });
+}
+
 /** The real sink. Every native error is absorbed rather than surfaced. */
-export function createExpoSpeechSink(): SpeechSink {
+export function createExpoSpeechSink(options?: SpeechSinkOptions): SpeechSink {
+  const isCalm = options?.profile === 'calm' || options?.profile === 'meditation';
   return {
     speak(text, { priority, interrupt }) {
       const speech = loadSpeech();
       if (!speech) return;
+      if (isCalm) {
+        resolveCalmVoice(speech);
+      }
       try {
-        speech.speak(text, {
+        const rate =
+          options?.rate ??
+          (isCalm ? CALM_VOICE_RATE : priority === 'high' ? 1.05 : STANDARD_VOICE_RATE);
+        const pitch =
+          options?.pitch ?? (isCalm ? CALM_VOICE_PITCH : STANDARD_VOICE_PITCH);
+
+        const speakOptions: Record<string, unknown> = {
           language: 'en-US',
-          // Warnings lean slightly faster so they cut through and are noticed;
-          // praise is a touch slower to read as encouragement.
-          rate: priority === 'high' ? 1.05 : 0.95,
-          pitch: 1,
+          rate,
+          pitch,
           // expo-speech reports per-utterance failures through these callbacks.
           // There is nothing useful to do with them, and an unhandled one would
           // surface as a red box, so they are absorbed here.
           onError: () => {},
-        });
+        };
+
+        if (isCalm && preferredCalmVoiceIdentifier) {
+          speakOptions.voice = preferredCalmVoiceIdentifier;
+        }
+
+        speech.speak(text, speakOptions);
       } catch {
         // Intentionally swallowed.
       }
@@ -397,4 +449,9 @@ export function createExpoSpeechSink(): SpeechSink {
       }
     },
   };
+}
+
+/** Creates a speech sink configured with the calming meditation profile. */
+export function createCalmSpeechSink(options?: SpeechSinkOptions): SpeechSink {
+  return createExpoSpeechSink({ profile: 'calm', ...options });
 }

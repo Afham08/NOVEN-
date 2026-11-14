@@ -11,6 +11,37 @@
  * failure attributed to the suite that produced it.
  */
 
+// In Node test runner, hook module resolution for static audio assets
+if (typeof require !== 'undefined') {
+  try {
+    // eslint-disable-next-line @typescript-eslint/no-require-imports
+    const Module = require('module') as {
+      _resolveFilename?: (request: string, ...args: unknown[]) => string;
+      __oggHooked?: boolean;
+    };
+    if (Module && Module._resolveFilename && !Module.__oggHooked) {
+      Module.__oggHooked = true;
+      const origResolve = Module._resolveFilename;
+      Module._resolveFilename = function (request: string, ...args: unknown[]) {
+        if (typeof request === 'string' && request.endsWith('.ogg')) {
+          return request;
+        }
+        return origResolve.call(this, request, ...args);
+      };
+      const reqWithExt = require as {
+        extensions?: Record<string, (module: { exports: unknown }) => void>;
+      };
+      if (reqWithExt.extensions && !reqWithExt.extensions['.ogg']) {
+        reqWithExt.extensions['.ogg'] = (module) => {
+          module.exports = 1;
+        };
+      }
+    }
+  } catch {
+    // Intentionally swallowed
+  }
+}
+
 type Failure = { suite: string; name: string; detail: unknown };
 
 const failures: Failure[] = [];

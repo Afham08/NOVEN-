@@ -371,7 +371,12 @@ export function run(): void {
     }
 
     // And the seated sessions do get the upright check they can honestly use.
-    const seated = meditationSessions.filter((a) => a.id !== 'ten-minute-body-scan');
+    const seated = meditationSessions.filter(
+      (a) =>
+        a.id !== 'ten-minute-body-scan' &&
+        a.id !== 'bedtime-wind-down' &&
+        a.id !== 'open-eyes-sound-awareness',
+    );
     check('the seated meditations exist', seated.length === 5);
     for (const activity of seated) {
       const cameraSteps = activity.steps.filter((s) => s.cameraConfigId !== undefined);
@@ -380,6 +385,13 @@ export function run(): void {
         check(`${activity.id} checks upright posture while seated`, step.postureExpectation === 'seated-upright');
       }
     }
+
+    const bedtime = meditationSessions.find((a) => a.id === 'bedtime-wind-down');
+    check(
+      'bedtime wind-down declares in-frame posture expectation',
+      bedtime?.steps[0]?.postureExpectation === 'in-frame',
+      bedtime?.steps[0]?.postureExpectation,
+    );
   });
 
   suite('meditation stays completable without a camera', () => {
@@ -412,13 +424,20 @@ export function run(): void {
       meditationSessions[0]?.id,
     );
 
-    for (const activity of meditationSessions) {
+    const cameraActivities = meditationSessions.filter((a) => a.id !== 'open-eyes-sound-awareness');
+    for (const activity of cameraActivities) {
       check(
         `${activity.id} opens on its camera stage`,
         activity.steps[0]?.cameraConfigId === 'meditation-posture',
         activity.steps[0]?.cameraConfigId,
       );
     }
+
+    const openEyes = meditationSessions.find((a) => a.id === 'open-eyes-sound-awareness');
+    check(
+      'open-eyes sound awareness has no camera stages',
+      openEyes?.steps.every((s) => s.cameraConfigId === undefined) === true,
+    );
 
     const activity = meditationSessions[0];
     let nowMs = 1_000_000;

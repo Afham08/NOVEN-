@@ -15,6 +15,13 @@ import {
 import { GuidedSession } from '../src/activities/guided-session';
 import { meditationSessions } from '../src/activities/meditation';
 import {
+  CALM_VOICE_PITCH,
+  CALM_VOICE_RATE,
+  createCalmSpeechSink,
+  STANDARD_VOICE_PITCH,
+  STANDARD_VOICE_RATE,
+} from '../src/exercise/voice-feedback';
+import {
   createSessionRecord,
   parseSessionRecord,
   SESSION_HISTORY_KEY,
@@ -1025,11 +1032,11 @@ suite('meditation: the breathing routine uses the guide', () => {
 suite('meditation: the other sessions are untouched', () => {
   /*
    * The original three sessions keep their ids, their stages and their lengths,
-   * while three new seated meditation sessions designed for elderly comfort
+   * while five senior-friendly seated and rest meditation sessions
    * have been added to the catalogue.
    */
   const ids = meditationSessions.map((a) => a.id);
-  check('there are six meditation sessions', meditationSessions.length === 6, ids);
+  check('there are eight meditation sessions', meditationSessions.length === 8, ids);
   check('one minute of calm is still there', ids.includes('one-minute-calm'), ids);
   check('the ten minute body scan is still there', ids.includes('ten-minute-body-scan'), ids);
   check('and the five minute breathing session', ids.includes('five-minute-breathing'), ids);
@@ -1044,13 +1051,18 @@ suite('meditation: the other sessions are untouched', () => {
   /*
    * The unpaced sessions pace no breath.
    */
-  for (const id of ['one-minute-calm', 'ten-minute-body-scan', 'seated-body-relaxation']) {
+  for (const id of [
+    'one-minute-calm',
+    'ten-minute-body-scan',
+    'seated-body-relaxation',
+    'open-eyes-sound-awareness',
+  ]) {
     const activity = meditationSessions.find((a) => a.id === id);
     check(`${id} paces no breath`, activity?.steps.every((s) => s.breathingTechniqueId === undefined) === true);
   }
 
   /*
-   * Check the three new seated meditation routines.
+   * Check the three seated meditation routines.
    */
   check('seated gentle breathing exists', ids.includes('seated-gentle-breathing'));
   check('seated body relaxation exists', ids.includes('seated-body-relaxation'));
@@ -1064,15 +1076,40 @@ suite('meditation: the other sessions are untouched', () => {
   check('seated gentle breathing has 3 stages', gentleSess?.steps.length === 3, gentleSess?.steps.length);
   check('seated gentle breathing step 2 uses gentle-breathing', gentleSess?.steps[1]?.breathingTechniqueId === 'gentle-breathing');
   check('seated gentle breathing uses stages as progressNoun', gentleSess?.progressNoun === 'stages');
+  check('seated gentle breathing has ambientAudio', gentleSess?.ambientAudio !== undefined);
 
   check('seated body relaxation is 180 seconds', bodyRelax?.durationSeconds === 180, bodyRelax?.durationSeconds);
   check('seated body relaxation has 4 stages', bodyRelax?.steps.length === 4, bodyRelax?.steps.length);
   check('seated body relaxation uses stages as progressNoun', bodyRelax?.progressNoun === 'stages');
+  check('seated body relaxation has ambientAudio', bodyRelax?.ambientAudio !== undefined);
 
   check('seated peaceful mind is 300 seconds', peaceful?.durationSeconds === 300, peaceful?.durationSeconds);
   check('seated peaceful mind has 4 stages', peaceful?.steps.length === 4, peaceful?.steps.length);
   check('seated peaceful mind step 2 uses easy-rhythm', peaceful?.steps[1]?.breathingTechniqueId === 'easy-rhythm');
   check('seated peaceful mind uses stages as progressNoun', peaceful?.progressNoun === 'stages');
+  check('seated peaceful mind has ambientAudio', peaceful?.ambientAudio !== undefined);
+
+  /*
+   * Check the two new rest and listening routines.
+   */
+  check('bedtime wind-down exists', ids.includes('bedtime-wind-down'));
+  check('open-eyes sound awareness exists', ids.includes('open-eyes-sound-awareness'));
+
+  const bedtime = meditationSessions.find((a) => a.id === 'bedtime-wind-down');
+  const openEyes = meditationSessions.find((a) => a.id === 'open-eyes-sound-awareness');
+
+  check('bedtime wind-down is 180 seconds', bedtime?.durationSeconds === 180, bedtime?.durationSeconds);
+  check('bedtime wind-down has 3 stages', bedtime?.steps.length === 3, bedtime?.steps.length);
+  check('bedtime wind-down step 2 uses gentle-breathing', bedtime?.steps[1]?.breathingTechniqueId === 'gentle-breathing');
+  check('bedtime wind-down uses stages as progressNoun', bedtime?.progressNoun === 'stages');
+  check('bedtime wind-down has ambientAudio', bedtime?.ambientAudio !== undefined);
+
+  check('open-eyes sound awareness is 180 seconds', openEyes?.durationSeconds === 180, openEyes?.durationSeconds);
+  check('open-eyes sound awareness has 4 stages', openEyes?.steps.length === 4, openEyes?.steps.length);
+  check('open-eyes sound awareness paces no breath', openEyes?.steps.every((s) => s.breathingTechniqueId === undefined) === true);
+  check('open-eyes sound awareness uses stages as progressNoun', openEyes?.progressNoun === 'stages');
+  check('open-eyes sound awareness has ambientAudio', openEyes?.ambientAudio !== undefined);
+  check('open-eyes sound awareness has no camera stages', openEyes?.steps.every((s) => s.cameraConfigId === undefined) === true);
 
   /*
    * The camera stages are unchanged in posture config: it still runs where it did
@@ -1082,8 +1119,29 @@ suite('meditation: the other sessions are untouched', () => {
     a.steps.filter((s) => s.cameraConfigId !== undefined).map((s) => s.cameraConfigId),
   );
   check('every camera stage is still the posture config', cameraStages.every((id) => id === 'meditation-posture'), cameraStages);
-  check('one per session, six total', cameraStages.length === 6, cameraStages.length);
+  check('seven camera stages total', cameraStages.length === 7, cameraStages.length);
   check('and none of them is a breathing stage', meditationSessions.every((a) => a.steps.every((s) => !(s.cameraConfigId !== undefined && s.breathingTechniqueId !== undefined))));
+});
+
+suite('meditation: calming voice parameters for instructor speech', () => {
+  check(
+    'calming rate is slower than standard (around 0.85-0.90)',
+    CALM_VOICE_RATE >= 0.85 && CALM_VOICE_RATE <= 0.90,
+    CALM_VOICE_RATE,
+  );
+  check(
+    'calming pitch is higher/softer than standard (around 1.08-1.12)',
+    CALM_VOICE_PITCH >= 1.08 && CALM_VOICE_PITCH <= 1.12,
+    CALM_VOICE_PITCH,
+  );
+  check('calm rate is slower than standard rate', CALM_VOICE_RATE < STANDARD_VOICE_RATE);
+  check('calm pitch is higher than standard pitch', CALM_VOICE_PITCH > STANDARD_VOICE_PITCH);
+
+  const calmSink = createCalmSpeechSink();
+  check(
+    'createCalmSpeechSink returns a valid speech sink',
+    typeof calmSink.speak === 'function' && typeof calmSink.stop === 'function',
+  );
 });
 
 suite('the guided screen drives the guide', () => {
