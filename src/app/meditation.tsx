@@ -23,9 +23,7 @@ export default function MeditationScreen() {
 
   const seniorIds = [
     'seated-gentle-breathing',
-    'seated-body-relaxation',
     'seated-peaceful-mind',
-    'bedtime-wind-down',
     'open-eyes-sound-awareness',
   ];
   const seniorSessions = allSessions.filter((s) => seniorIds.includes(s.id));

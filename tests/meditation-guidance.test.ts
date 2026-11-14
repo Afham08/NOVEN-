@@ -372,12 +372,9 @@ export function run(): void {
 
     // And the seated sessions do get the upright check they can honestly use.
     const seated = meditationSessions.filter(
-      (a) =>
-        a.id !== 'ten-minute-body-scan' &&
-        a.id !== 'bedtime-wind-down' &&
-        a.id !== 'open-eyes-sound-awareness',
+      (a) => a.id !== 'open-eyes-sound-awareness',
     );
-    check('the seated meditations exist', seated.length === 5);
+    check('the seated meditations exist', seated.length === 4);
     for (const activity of seated) {
       const cameraSteps = activity.steps.filter((s) => s.cameraConfigId !== undefined);
       check(`${activity.id} has a camera step`, cameraSteps.length > 0);
@@ -385,13 +382,6 @@ export function run(): void {
         check(`${activity.id} checks upright posture while seated`, step.postureExpectation === 'seated-upright');
       }
     }
-
-    const bedtime = meditationSessions.find((a) => a.id === 'bedtime-wind-down');
-    check(
-      'bedtime wind-down declares in-frame posture expectation',
-      bedtime?.steps[0]?.postureExpectation === 'in-frame',
-      bedtime?.steps[0]?.postureExpectation,
-    );
   });
 
   suite('meditation stays completable without a camera', () => {

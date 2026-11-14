@@ -34,8 +34,6 @@ if (typeof require !== 'undefined') {
 // eslint-disable-next-line @typescript-eslint/no-require-imports
 const WAVES_AUDIO = require('../../assets/Audiomusics/waves.ogg') as number;
 // eslint-disable-next-line @typescript-eslint/no-require-imports
-const RAIN_AUDIO = require('../../assets/Audiomusics/rain.ogg') as number;
-// eslint-disable-next-line @typescript-eslint/no-require-imports
 const BIRDS_AUDIO = require('../../assets/Audiomusics/birds.ogg') as number;
 
 /**
@@ -150,48 +148,6 @@ export const meditationSessions: readonly GuidedActivity[] = [
   }),
 
   defineGuidedActivity({
-    id: 'ten-minute-body-scan',
-    kind: 'meditation',
-    name: 'Ten Minute Body Scan',
-    summary: 'Ten minutes of attention, from your feet upwards',
-    progressNoun: 'stages',
-    steps: [
-      {
-        seconds: 30,
-        title: 'Settle',
-        guidance: 'Lie down or sit back, whichever is more comfortable. Loosen anything tight.',
-        cameraConfigId: 'meditation-posture',
-        // This step invites the person to lie down, so the camera may confirm
-        // they are in frame and must not comment on how upright they are. See
-        // `MeditationPostureExpectation`.
-        postureExpectation: 'in-frame',
-      },
-      {
-        seconds: 150,
-        title: 'Feet and Legs',
-        guidance: 'Feel your feet against the floor, then move your attention slowly up your legs.',
-      },
-      {
-        seconds: 150,
-        title: 'Body and Stomach',
-        guidance: 'Notice your back, your stomach, and your breathing, without changing any of them.',
-      },
-      {
-        seconds: 150,
-        title: 'Hands and Arms',
-        guidance: 'Feel your hands, then your arms and shoulders. Let them be heavy.',
-      },
-      {
-        seconds: 120,
-        title: 'Head and Face',
-        guidance: 'Relax your jaw and your forehead. Unclench your teeth.',
-      },
-    ],
-    safetyNote:
-      'Lying down on your back is fine, but not on a bed if you would be unable to turn over. Stop at any point.',
-  }),
-
-  defineGuidedActivity({
     id: 'seated-gentle-breathing',
     kind: 'meditation',
     name: '2-Minute Gentle Breathing',
@@ -222,44 +178,6 @@ export const meditationSessions: readonly GuidedActivity[] = [
     ],
     safetyNote:
       'Keep this seated in a sturdy chair. Stop if you feel dizzy or lightheaded, and return to your natural breathing.',
-  }),
-
-  defineGuidedActivity({
-    id: 'seated-body-relaxation',
-    kind: 'meditation',
-    name: '3-Minute Seated Body Relaxation',
-    summary: 'A soothing seated body relaxation to ease tension from head to toe',
-    progressNoun: 'stages',
-    ambientAudio: { source: RAIN_AUDIO, volume: 0.28 },
-    steps: [
-      {
-        seconds: 20,
-        title: 'Settle',
-        guidance:
-          'Sit comfortably against the back of your chair. Let your eyes close or look softly downward.',
-        cameraConfigId: 'meditation-posture',
-        postureExpectation: 'seated-upright',
-      },
-      {
-        seconds: 50,
-        title: 'Shoulders and Hands',
-        guidance: 'Let your shoulders drop away from your ears. Soften your hands and fingers.',
-      },
-      {
-        seconds: 60,
-        title: 'Back and Legs',
-        guidance:
-          'Feel the chair supporting your back and thighs. Let your legs feel heavy and supported.',
-      },
-      {
-        seconds: 50,
-        title: 'Peaceful Rest',
-        guidance:
-          'Notice your jaw and forehead softening. Rest here quietly until the timer ends.',
-      },
-    ],
-    safetyNote:
-      'Stay comfortably seated throughout. Open your eyes or take a pause whenever you wish.',
   }),
 
   defineGuidedActivity({
@@ -299,39 +217,6 @@ export const meditationSessions: readonly GuidedActivity[] = [
     ],
     safetyNote:
       'Sit in a supportive chair with feet flat. Take a break at any point if you feel uneasy.',
-  }),
-
-  defineGuidedActivity({
-    id: 'bedtime-wind-down',
-    kind: 'meditation',
-    name: '3-Minute Bedtime Wind-Down',
-    summary: 'A gentle lying-down rest with soft rain sounds to help you unwind before sleep',
-    progressNoun: 'stages',
-    ambientAudio: { source: RAIN_AUDIO, volume: 0.25 },
-    steps: [
-      {
-        seconds: 20,
-        title: 'Get Comfortable',
-        guidance:
-          'Lie down comfortably on your bed or recliner. Let your arms rest loosely by your sides.',
-        cameraConfigId: 'meditation-posture',
-        postureExpectation: 'in-frame',
-      },
-      {
-        seconds: 80,
-        title: 'Slow Nighttime Breath',
-        guidance: 'Breathe in slowly and let each breath out feel longer and softer.',
-        breathingTechniqueId: 'gentle-breathing',
-      },
-      {
-        seconds: 80,
-        title: 'Heavy Restful Body',
-        guidance:
-          'Let the bed support your entire body. Allow your shoulders, legs, and face to feel heavy and still.',
-      },
-    ],
-    safetyNote:
-      'Practice lying down in a safe, comfortable place where you will not roll off. Stop anytime if you feel uncomfortable.',
   }),
 
   defineGuidedActivity({

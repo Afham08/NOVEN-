@@ -1031,30 +1031,23 @@ suite('meditation: the breathing routine uses the guide', () => {
 
 suite('meditation: the other sessions are untouched', () => {
   /*
-   * The original three sessions keep their ids, their stages and their lengths,
-   * while five senior-friendly seated and rest meditation sessions
-   * have been added to the catalogue.
+   * The meditation catalogue contains five routines: two classic practices,
+   * two seated elder-friendly breathing meditations, and an open-eyes sound awareness session.
    */
   const ids = meditationSessions.map((a) => a.id);
-  check('there are eight meditation sessions', meditationSessions.length === 8, ids);
+  check('there are five meditation sessions', meditationSessions.length === 5, ids);
   check('one minute of calm is still there', ids.includes('one-minute-calm'), ids);
-  check('the ten minute body scan is still there', ids.includes('ten-minute-body-scan'), ids);
   check('and the five minute breathing session', ids.includes('five-minute-breathing'), ids);
 
   const calm = meditationSessions.find((a) => a.id === 'one-minute-calm');
-  const scan = meditationSessions.find((a) => a.id === 'ten-minute-body-scan');
   check('one minute of calm is still sixty seconds', calm?.durationSeconds === 60, calm?.durationSeconds);
   check('and still has its three stages', calm?.steps.length === 3, calm?.steps.length);
-  check('the body scan is still ten minutes', scan?.durationSeconds === 600, scan?.durationSeconds);
-  check('and still has its five stages', scan?.steps.length === 5, scan?.steps.length);
 
   /*
    * The unpaced sessions pace no breath.
    */
   for (const id of [
     'one-minute-calm',
-    'ten-minute-body-scan',
-    'seated-body-relaxation',
     'open-eyes-sound-awareness',
   ]) {
     const activity = meditationSessions.find((a) => a.id === id);
@@ -1062,14 +1055,12 @@ suite('meditation: the other sessions are untouched', () => {
   }
 
   /*
-   * Check the three seated meditation routines.
+   * Check the seated meditation routines.
    */
   check('seated gentle breathing exists', ids.includes('seated-gentle-breathing'));
-  check('seated body relaxation exists', ids.includes('seated-body-relaxation'));
   check('seated peaceful mind exists', ids.includes('seated-peaceful-mind'));
 
   const gentleSess = meditationSessions.find((a) => a.id === 'seated-gentle-breathing');
-  const bodyRelax = meditationSessions.find((a) => a.id === 'seated-body-relaxation');
   const peaceful = meditationSessions.find((a) => a.id === 'seated-peaceful-mind');
 
   check('seated gentle breathing is 120 seconds', gentleSess?.durationSeconds === 120, gentleSess?.durationSeconds);
@@ -1078,11 +1069,6 @@ suite('meditation: the other sessions are untouched', () => {
   check('seated gentle breathing uses stages as progressNoun', gentleSess?.progressNoun === 'stages');
   check('seated gentle breathing has ambientAudio', gentleSess?.ambientAudio !== undefined);
 
-  check('seated body relaxation is 180 seconds', bodyRelax?.durationSeconds === 180, bodyRelax?.durationSeconds);
-  check('seated body relaxation has 4 stages', bodyRelax?.steps.length === 4, bodyRelax?.steps.length);
-  check('seated body relaxation uses stages as progressNoun', bodyRelax?.progressNoun === 'stages');
-  check('seated body relaxation has ambientAudio', bodyRelax?.ambientAudio !== undefined);
-
   check('seated peaceful mind is 300 seconds', peaceful?.durationSeconds === 300, peaceful?.durationSeconds);
   check('seated peaceful mind has 4 stages', peaceful?.steps.length === 4, peaceful?.steps.length);
   check('seated peaceful mind step 2 uses easy-rhythm', peaceful?.steps[1]?.breathingTechniqueId === 'easy-rhythm');
@@ -1090,19 +1076,11 @@ suite('meditation: the other sessions are untouched', () => {
   check('seated peaceful mind has ambientAudio', peaceful?.ambientAudio !== undefined);
 
   /*
-   * Check the two new rest and listening routines.
+   * Check the open-eyes listening routine.
    */
-  check('bedtime wind-down exists', ids.includes('bedtime-wind-down'));
   check('open-eyes sound awareness exists', ids.includes('open-eyes-sound-awareness'));
 
-  const bedtime = meditationSessions.find((a) => a.id === 'bedtime-wind-down');
   const openEyes = meditationSessions.find((a) => a.id === 'open-eyes-sound-awareness');
-
-  check('bedtime wind-down is 180 seconds', bedtime?.durationSeconds === 180, bedtime?.durationSeconds);
-  check('bedtime wind-down has 3 stages', bedtime?.steps.length === 3, bedtime?.steps.length);
-  check('bedtime wind-down step 2 uses gentle-breathing', bedtime?.steps[1]?.breathingTechniqueId === 'gentle-breathing');
-  check('bedtime wind-down uses stages as progressNoun', bedtime?.progressNoun === 'stages');
-  check('bedtime wind-down has ambientAudio', bedtime?.ambientAudio !== undefined);
 
   check('open-eyes sound awareness is 180 seconds', openEyes?.durationSeconds === 180, openEyes?.durationSeconds);
   check('open-eyes sound awareness has 4 stages', openEyes?.steps.length === 4, openEyes?.steps.length);
@@ -1119,7 +1097,7 @@ suite('meditation: the other sessions are untouched', () => {
     a.steps.filter((s) => s.cameraConfigId !== undefined).map((s) => s.cameraConfigId),
   );
   check('every camera stage is still the posture config', cameraStages.every((id) => id === 'meditation-posture'), cameraStages);
-  check('seven camera stages total', cameraStages.length === 7, cameraStages.length);
+  check('four camera stages total', cameraStages.length === 4, cameraStages.length);
   check('and none of them is a breathing stage', meditationSessions.every((a) => a.steps.every((s) => !(s.cameraConfigId !== undefined && s.breathingTechniqueId !== undefined))));
 });
 
