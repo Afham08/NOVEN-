@@ -32,17 +32,27 @@ if (typeof require !== 'undefined') {
         return origResolve.call(this, request, ...args);
       };
       const reqWithExt = require as {
-        extensions?: Record<string, (module: { exports: unknown }) => void>;
+        extensions?: Record<string, (module: { exports: unknown }, filename: string) => void>;
       };
       if (reqWithExt.extensions) {
+        const assetMap = new Map<string, number>();
+        let nextAssetId = 1;
+        const getAssetId = (filename: string) => {
+          let id = assetMap.get(filename);
+          if (!id) {
+            id = nextAssetId++;
+            assetMap.set(filename, id);
+          }
+          return id;
+        };
         if (!reqWithExt.extensions['.ogg']) {
-          reqWithExt.extensions['.ogg'] = (module) => {
-            module.exports = 1;
+          reqWithExt.extensions['.ogg'] = (module, filename) => {
+            module.exports = getAssetId(filename || 'ogg');
           };
         }
         if (!reqWithExt.extensions['.mp3']) {
-          reqWithExt.extensions['.mp3'] = (module) => {
-            module.exports = 1;
+          reqWithExt.extensions['.mp3'] = (module, filename) => {
+            module.exports = getAssetId(filename || 'mp3');
           };
         }
       }

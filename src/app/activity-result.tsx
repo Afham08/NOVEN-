@@ -1,9 +1,16 @@
 import { useLocalSearchParams, useRouter } from 'expo-router';
-import { useRef } from 'react';
+import { useEffect, useRef } from 'react';
 import { StyleSheet, Text, View } from 'react-native';
 
 import { describeLength } from '@/activities/activity-format';
 import { findGuidedActivity } from '@/activities/catalog';
+import {
+  createExpoAudioDriver,
+  DEFAULT_MEDITATION_VOICE_VOLUME,
+  MEDITATION_VOICE_CLIPS,
+  MeditationVoiceClipController,
+  safeDisposeAudio,
+} from '@/activities/meditation-audio';
 import { parseSaveStatusParam, parseSecondsParam, parseStepCountParam, describeSaveStatus } from '@/activities/result-params';
 import { Screen } from '@/components/layout/screen';
 import { Button } from '@/components/ui/button';
@@ -26,12 +33,13 @@ import { useTheme } from '@/hooks/use-theme';
  * wording and the totals can only come from the catalogue.
  */
 export default function ActivityResultScreen() {
-  const { id, steps, seconds, how, saved } = useLocalSearchParams<{
+  const { id, steps, seconds, how, saved, voice } = useLocalSearchParams<{
     id?: string;
     steps?: string;
     seconds?: string;
     how?: string;
     saved?: string;
+    voice?: string;
   }>();
   const router = useRouter();
   const theme = useTheme();
@@ -41,6 +49,35 @@ export default function ActivityResultScreen() {
   const elapsedSeconds = parseSecondsParam(seconds);
 
   /**
+   * Reference to voice clip controller for meditation completion voice guidance.
+   */
+  const voiceClipsRef = useRef<MeditationVoiceClipController | null>(null);
+
+  /**
+   * Plays the warm congratulatory message once when a meditation finishes,
+   * respecting the user's voice preference.
+   */
+  const isMeditation = activity?.kind === 'meditation';
+  const isFinished = how === 'finished';
+  const voiceAllowed = voice !== 'muted';
+
+  useEffect(() => {
+    if (!isMeditation || !isFinished || !voiceAllowed) return;
+
+    const controller = new MeditationVoiceClipController(createExpoAudioDriver(), {
+      volume: DEFAULT_MEDITATION_VOICE_VOLUME,
+    });
+    voiceClipsRef.current = controller;
+
+    void controller.playClip(MEDITATION_VOICE_CLIPS.complete, false);
+
+    return () => {
+      safeDisposeAudio(controller);
+      if (voiceClipsRef.current === controller) voiceClipsRef.current = null;
+    };
+  }, [isFinished, isMeditation, voiceAllowed]);
+
+  /**
    * Leaving is once-only, so a double tap cannot stack two of these screens in the
    * stack for the user to navigate back into.
    */
@@ -48,6 +85,7 @@ export default function ActivityResultScreen() {
   const leave = () => {
     if (leavingRef.current) return;
     leavingRef.current = true;
+    safeDisposeAudio(voiceClipsRef.current);
     router.replace('/');
   };
 

@@ -26,7 +26,6 @@ import {
 import {
   ambientAudioFor,
   createExpoAudioDriver,
-  MEDITATION_VOICE_CLIPS,
   meditationBreathPhaseVoiceClip,
   meditationStepVoiceClip,
   MeditationAudioController,
@@ -927,10 +926,13 @@ export function GuidedActivityScreen({ activity }: GuidedActivityScreenProps) {
        */
       if (voiceEnabled) {
         if (isMeditation) {
+          /*
+           * For meditation sessions, stop any in-flight guidance/breathing clip.
+           * The congratulatory complete.mp3 clip is handed off to ActivityResultScreen
+           * so it plays smoothly to completion during the summary display rather than
+           * getting cut off when this screen unmounts.
+           */
           voiceClipsRef.current?.stop();
-          if (how === 'finished') {
-            void voiceClipsRef.current?.playClip(MEDITATION_VOICE_CLIPS.complete, false);
-          }
         } else {
           voiceRef.current?.announceCompletion(measuredReps(repTallyRef.current));
         }
@@ -1014,6 +1016,7 @@ export function GuidedActivityScreen({ activity }: GuidedActivityScreenProps) {
               seconds: String(final.elapsedSeconds),
               how,
               saved: saveStatus,
+              voice: voiceEnabled ? 'on' : 'muted',
             },
           });
         },

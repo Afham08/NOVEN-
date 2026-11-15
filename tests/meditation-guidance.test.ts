@@ -15,10 +15,13 @@ import {
   isMediaAbortError,
   isMediaAbortEvent,
   isMediaAbortRejection,
+  MEDITATION_CLIP_DURATIONS_MS,
+  MEDITATION_VOICE_CLIP_DURATIONS_MS,
   MEDITATION_VOICE_CLIPS,
   meditationBreathPhaseVoiceClip,
   meditationStepVoiceClip,
   MeditationVoiceClipController,
+  safeDisposeAudio,
   setExpoAudioForTest,
   type MeditationAudioDriver,
   type MeditationAudioHandle,
@@ -535,9 +538,21 @@ export function run(): void {
       screenCode.includes('meditationBreathPhaseVoiceClip(phaseId)') &&
         screenCode.includes('!voiceClipsRef.current?.isPlayingIntro()'),
     );
+    const resultCode = fs.readFileSync(
+      nodePath.resolve(__dirname, '../../src/app/activity-result.tsx'),
+      'utf8',
+    );
     check(
-      'session completion plays complete voice clip',
-      screenCode.includes('MEDITATION_VOICE_CLIPS.complete'),
+      'session completion plays complete voice clip on result screen',
+      resultCode.includes('MEDITATION_VOICE_CLIPS.complete'),
+    );
+    check(
+      'guided screen does not duplicate complete voice clip before navigation',
+      !screenCode.includes('playClip(MEDITATION_VOICE_CLIPS.complete'),
+    );
+    check(
+      'guided screen passes voice mute state in route params to result screen',
+      screenCode.includes("voice: voiceEnabled ? 'on' : 'muted'"),
     );
     check(
       'muting calls voiceClipsRef.current?.stop() and setMuted',
@@ -579,8 +594,16 @@ export function run(): void {
     check('exhale maps to exhale clip', meditationBreathPhaseVoiceClip('exhale') === MEDITATION_VOICE_CLIPS.exhale);
     check('unknown phase returns undefined', meditationBreathPhaseVoiceClip('unknown') === undefined);
 
-    // Verify completion clip
+    // Verify completion clip and duration
     check('complete voice clip exists', MEDITATION_VOICE_CLIPS.complete !== undefined);
+    check(
+      'MEDITATION_VOICE_CLIP_DURATIONS_MS.complete matches updated complete.mp3 duration (~9561 ms)',
+      MEDITATION_VOICE_CLIP_DURATIONS_MS.complete === 9561,
+    );
+    check(
+      'MEDITATION_CLIP_DURATIONS_MS matches complete duration',
+      MEDITATION_CLIP_DURATIONS_MS[MEDITATION_VOICE_CLIPS.complete] === 9561,
+    );
 
     // Verify posture-check.mp3 is NOT in clips
     check('posture-check is not included in clips', !('postureCheck' in MEDITATION_VOICE_CLIPS));
@@ -775,6 +798,93 @@ export function run(): void {
       rejectedOnDispose = true;
     }
     check('dispose() swallows rejected promise from handle without unhandled rejection', rejectedOnDispose === false);
+  });
+
+  suite('meditation completion clip on result screen: plays once with loop false and disposes cleanly', async () => {
+    type MockRecord = {
+      source: unknown;
+      loop: boolean;
+      volume: number;
+      calls: string[];
+    };
+    const created: MockRecord[] = [];
+
+    const mockDriver: MeditationAudioDriver = {
+      create(source, options) {
+        const record: MockRecord = {
+          source,
+          loop: options.loop,
+          volume: options.volume,
+          calls: [],
+        };
+        created.push(record);
+        const handle: MeditationAudioHandle = {
+          play() {
+            record.calls.push('play');
+          },
+          pause() {
+            record.calls.push('pause');
+          },
+          stop() {
+            record.calls.push('stop');
+          },
+          setVolume(v) {
+            record.volume = v;
+          },
+          release() {
+            record.calls.push('release');
+          },
+        };
+        return Promise.resolve(handle);
+      },
+    };
+
+    // 1. Plays complete clip once with loop: false and volume 0.92
+    const controller = new MeditationVoiceClipController(mockDriver, {
+      volume: DEFAULT_MEDITATION_VOICE_VOLUME,
+    });
+    await controller.playClip(MEDITATION_VOICE_CLIPS.complete, false);
+
+    check('created exactly one handle for completion clip', created.length === 1);
+    check('complete clip source matches MEDITATION_VOICE_CLIPS.complete', created[0].source === MEDITATION_VOICE_CLIPS.complete);
+    check('loop is false', created[0].loop === false);
+    check('volume is 0.92', created[0].volume === DEFAULT_MEDITATION_VOICE_VOLUME);
+    check('play() was called', created[0].calls.includes('play'));
+
+    // 2. Playing another clip stops previous handle (no overlapping)
+    await controller.playClip(MEDITATION_VOICE_CLIPS.complete, false);
+    check('created second handle', created.length === 2);
+    check('first handle was stopped and released (no overlap)', created[0].calls.includes('release'));
+
+    // 3. Disposing / leaving screen via safeDisposeAudio pauses and releases cleanly without throwing
+    let threwOnDispose = false;
+    try {
+      safeDisposeAudio(controller);
+    } catch {
+      threwOnDispose = true;
+    }
+    check('safeDisposeAudio does not throw', !threwOnDispose);
+    check('second handle was paused and released on disposal', created[1].calls.includes('release'));
+
+    // 4. Calling safeDisposeAudio on null / undefined is safe
+    let threwOnNull = false;
+    try {
+      safeDisposeAudio(null);
+      safeDisposeAudio(undefined);
+    } catch {
+      threwOnNull = true;
+    }
+    check('safeDisposeAudio handles null/undefined safely', !threwOnNull);
+
+    // 5. When voice is muted, no audio is played
+    const mutedController = new MeditationVoiceClipController(mockDriver, {
+      muted: true,
+      volume: DEFAULT_MEDITATION_VOICE_VOLUME,
+    });
+    const countBeforeMuted = created.length;
+    await mutedController.playClip(MEDITATION_VOICE_CLIPS.complete, false);
+    check('no handle created when voice is muted', created.length === countBeforeMuted);
+    safeDisposeAudio(mutedController);
   });
 
   suite('createExpoAudioDriver release behavior on web vs native', async () => {

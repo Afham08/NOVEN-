@@ -139,7 +139,7 @@ export const MEDITATION_CLIP_DURATIONS_MS: Record<number | string, number> = {
   [INHALE_VOICE]: 1100,
   [HOLD_VOICE]: 1100,
   [EXHALE_VOICE]: 1300,
-  [COMPLETE_VOICE]: 4200,
+  [COMPLETE_VOICE]: 9561,
   [SETTLE_CHAIR_VOICE]: 6000,
   [GENTLE_BREATH_VOICE]: 6600,
   [QUIET_REST_VOICE]: 4800,
@@ -148,6 +148,20 @@ export const MEDITATION_CLIP_DURATIONS_MS: Record<number | string, number> = {
   [OPEN_EYES_START_VOICE]: 5900,
   [OPEN_EYES_LISTEN_VOICE]: 7400,
 };
+
+export const MEDITATION_VOICE_CLIP_DURATIONS_MS = {
+  inhale: 1100,
+  hold: 1100,
+  exhale: 1300,
+  complete: 9561,
+  settleChair: 6000,
+  gentleBreath: 6600,
+  quietRest: 4800,
+  peacefulMindStart: 6400,
+  peacefulMindMid: 8000,
+  openEyesStart: 5900,
+  openEyesListen: 7400,
+} as const;
 
 /**
  * How quiet the ambient bed is by default.
@@ -1100,3 +1114,52 @@ export function isMediaAbortRejection(eventOrReason: unknown): boolean {
 export function isMediaAbortEvent(eventOrReason: unknown): boolean {
   return isMediaAbortError(eventOrReason) || isMediaAbortRejection(eventOrReason);
 }
+
+/**
+ * Safely pauses, stops, and releases an audio player, controller, or handle,
+ * guarding against DOMException AbortErrors and unhandled promise rejections on web.
+ */
+export function safeDisposeAudio(
+  target:
+    | { dispose: () => void }
+    | { release: () => void; pause?: () => unknown; stop?: () => unknown }
+    | null
+    | undefined,
+): void {
+  if (!target) return;
+  try {
+    if ('dispose' in target && typeof target.dispose === 'function') {
+      target.dispose();
+      return;
+    }
+    if ('pause' in target && typeof target.pause === 'function') {
+      try {
+        const res = target.pause() as unknown;
+        if (res && typeof (res as Promise<void>).catch === 'function') {
+          (res as Promise<void>).catch(() => {});
+        }
+      } catch {
+        // Intentionally swallowed
+      }
+    }
+    if ('stop' in target && typeof target.stop === 'function') {
+      try {
+        const res = target.stop() as unknown;
+        if (res && typeof (res as Promise<void>).catch === 'function') {
+          (res as Promise<void>).catch(() => {});
+        }
+      } catch {
+        // Intentionally swallowed
+      }
+    }
+    if ('release' in target && typeof target.release === 'function') {
+      const res = target.release() as unknown;
+      if (res && typeof (res as Promise<void>).catch === 'function') {
+        (res as Promise<void>).catch(() => {});
+      }
+    }
+  } catch {
+    // Intentionally swallowed
+  }
+}
+
