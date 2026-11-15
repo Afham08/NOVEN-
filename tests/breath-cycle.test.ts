@@ -1103,8 +1103,8 @@ suite('meditation: the other sessions are untouched', () => {
 
 suite('meditation: calming voice parameters for instructor speech', () => {
   check(
-    'calming rate is slower than standard (around 0.85-0.90)',
-    CALM_VOICE_RATE >= 0.85 && CALM_VOICE_RATE <= 0.90,
+    'calming rate is slower than standard (around 0.80-0.90)',
+    CALM_VOICE_RATE >= 0.80 && CALM_VOICE_RATE <= 0.90,
     CALM_VOICE_RATE,
   );
   check(

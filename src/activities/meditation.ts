@@ -6,13 +6,16 @@ if (typeof require !== 'undefined') {
     // eslint-disable-next-line @typescript-eslint/no-require-imports
     const Module = require('module') as {
       _resolveFilename?: (request: string, ...args: unknown[]) => string;
-      __oggHooked?: boolean;
+      __audioHooked?: boolean;
     };
-    if (Module && Module._resolveFilename && !Module.__oggHooked) {
-      Module.__oggHooked = true;
+    if (Module && Module._resolveFilename && !Module.__audioHooked) {
+      Module.__audioHooked = true;
       const origResolve = Module._resolveFilename;
       Module._resolveFilename = function (request: string, ...args: unknown[]) {
-        if (typeof request === 'string' && request.endsWith('.ogg')) {
+        if (
+          typeof request === 'string' &&
+          (request.endsWith('.ogg') || request.endsWith('.mp3'))
+        ) {
           return request;
         }
         return origResolve.call(this, request, ...args);
@@ -20,10 +23,17 @@ if (typeof require !== 'undefined') {
       const reqWithExt = require as {
         extensions?: Record<string, (module: { exports: unknown }) => void>;
       };
-      if (reqWithExt.extensions && !reqWithExt.extensions['.ogg']) {
-        reqWithExt.extensions['.ogg'] = (module) => {
-          module.exports = 1;
-        };
+      if (reqWithExt.extensions) {
+        if (!reqWithExt.extensions['.ogg']) {
+          reqWithExt.extensions['.ogg'] = (module) => {
+            module.exports = 1;
+          };
+        }
+        if (!reqWithExt.extensions['.mp3']) {
+          reqWithExt.extensions['.mp3'] = (module) => {
+            module.exports = 1;
+          };
+        }
       }
     }
   } catch {

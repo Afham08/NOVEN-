@@ -1,7 +1,9 @@
 import { DarkTheme, DefaultTheme, Stack, ThemeProvider } from 'expo-router';
 import * as SplashScreen from 'expo-splash-screen';
+import { useEffect } from 'react';
 import { Platform, StatusBar, useColorScheme } from 'react-native';
 
+import { isMediaAbortError, isMediaAbortRejection } from '@/activities/meditation-audio';
 import { AnimatedSplashOverlay } from '@/components/animated-icon';
 import { Colors } from '@/constants/theme';
 import { LanguageProvider } from '@/hooks/use-language';
@@ -25,6 +27,42 @@ if (Platform.OS !== 'web') {
  * another.
  */
 export default function RootLayout() {
+  useEffect(() => {
+    if (typeof window === 'undefined' || typeof window.addEventListener !== 'function') {
+      return;
+    }
+
+    const handleMediaAbortError = (event: Event | ErrorEvent) => {
+      if (isMediaAbortError(event)) {
+        if (typeof event.preventDefault === 'function') {
+          event.preventDefault();
+        }
+        if (typeof event.stopImmediatePropagation === 'function') {
+          event.stopImmediatePropagation();
+        }
+      }
+    };
+
+    const handleMediaAbortRejection = (event: Event | PromiseRejectionEvent) => {
+      if (isMediaAbortRejection(event)) {
+        if (typeof event.preventDefault === 'function') {
+          event.preventDefault();
+        }
+        if (typeof event.stopImmediatePropagation === 'function') {
+          event.stopImmediatePropagation();
+        }
+      }
+    };
+
+    window.addEventListener('error', handleMediaAbortError, true);
+    window.addEventListener('unhandledrejection', handleMediaAbortRejection, true);
+
+    return () => {
+      window.removeEventListener('error', handleMediaAbortError, true);
+      window.removeEventListener('unhandledrejection', handleMediaAbortRejection, true);
+    };
+  }, []);
+
   return (
     <LanguageProvider>
       <ThemePreferenceProvider>

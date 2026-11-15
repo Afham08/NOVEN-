@@ -26,7 +26,11 @@ import {
 import {
   ambientAudioFor,
   createExpoAudioDriver,
+  MEDITATION_VOICE_CLIPS,
+  meditationBreathPhaseVoiceClip,
+  meditationStepVoiceClip,
   MeditationAudioController,
+  MeditationVoiceClipController,
   type MeditationAudioPhase,
 } from '@/activities/meditation-audio';
 import type { GuidedActivity } from '@/activities/types';
@@ -35,7 +39,7 @@ import { YogaHoldTracker, type YogaHoldSnapshot } from '@/activities/yoga-hold';
 import type { SaveStatus } from '@/activities/result-params';
 import { buildSessionMetrics } from '@/exercise/metrics';
 import { createSessionId, createSessionRecord } from '@/exercise/session-store';
-import { createExpoSpeechSink, VoiceFeedbackController } from '@/exercise/voice-feedback';
+import { createExpoSpeechSink, createSilentSpeechSink, VoiceFeedbackController } from '@/exercise/voice-feedback';
 import { sessionStore } from '@/exercise/session-storage';
 import { SessionEngine } from '@/exercise/session-engine';
 import { getGuidedPoseConfig } from '@/exercise/pose-configs';
@@ -138,6 +142,11 @@ export function GuidedActivityScreen({ activity }: GuidedActivityScreenProps) {
   const isMeditation = activity.kind === 'meditation';
 
   /**
+   * Voice guidance toggle. Defaults to true.
+   */
+  const [voiceEnabled, setVoiceEnabled] = useState(true);
+
+  /**
    * Voice guidance is the SAME controller the exercise session uses — one speech
    * pipeline for the whole app, injected with the same expo-speech sink, so there
    * is no second TTS implementation and no second throttling policy to drift.
@@ -156,12 +165,33 @@ export function GuidedActivityScreen({ activity }: GuidedActivityScreenProps) {
 
   useEffect(() => {
     const voice = new VoiceFeedbackController(
-      createExpoSpeechSink(isMeditation ? { profile: 'calm' } : undefined),
+      isMeditation ? createSilentSpeechSink() : createExpoSpeechSink(),
     );
     voiceRef.current = voice;
     return () => {
       voice.dispose();
       if (voiceRef.current === voice) voiceRef.current = null;
+    };
+  }, [isMeditation]);
+
+  /**
+   * Dedicated non-looping voice clip player for meditation sessions.
+   * Plays custom ElevenLabs female voice clips in chronological order
+   * while expo-speech TTS is silenced.
+   */
+  const voiceClipsRef = useRef<MeditationVoiceClipController | null>(null);
+
+  useEffect(() => {
+    if (!isMeditation) return;
+    const voiceClips = new MeditationVoiceClipController(createExpoAudioDriver());
+    voiceClipsRef.current = voiceClips;
+    return () => {
+      try {
+        voiceClips.dispose();
+      } catch {
+        // Intentionally swallowed on unmount
+      }
+      if (voiceClipsRef.current === voiceClips) voiceClipsRef.current = null;
     };
   }, [isMeditation]);
 
@@ -249,7 +279,11 @@ export function GuidedActivityScreen({ activity }: GuidedActivityScreenProps) {
       // Unsubscribed BEFORE disposing, so a late load cannot call setState on a
       // screen that has already navigated away.
       unsubscribe();
-      audio.dispose();
+      try {
+        audio.dispose();
+      } catch {
+        // Intentionally swallowed on unmount
+      }
       if (audioRef.current === audio) audioRef.current = null;
     };
   }, [ambientSource, ambientVolume]);
@@ -325,20 +359,20 @@ export function GuidedActivityScreen({ activity }: GuidedActivityScreenProps) {
    */
   const [postureCheckEnabled, setPostureCheckEnabled] = useState(!isMeditation);
 
-  /**
-   * Voice guidance toggle. Defaults to true.
-   */
-  const [voiceEnabled, setVoiceEnabled] = useState(true);
-
   const toggleVoice = useCallback(() => {
     setVoiceEnabled((prev) => {
       const next = !prev;
       if (!next) {
+        voiceRef.current?.stop();
         voiceRef.current?.reset();
+        voiceClipsRef.current?.stop();
+        voiceClipsRef.current?.setMuted(true);
+      } else {
+        voiceClipsRef.current?.setMuted(false);
       }
       return next;
     });
-  }, []);
+  }, [setVoiceEnabled]);
 
   /**
    * Whether the live camera preview should be mounted right now.
@@ -581,6 +615,7 @@ export function GuidedActivityScreen({ activity }: GuidedActivityScreenProps) {
     // The controller suspends itself while paused; nothing further is spoken
     // until Resume, exactly matching the exercise session's policy.
     if (voiceEnabled) voiceRef.current?.announcePause();
+    voiceClipsRef.current?.pause();
     // Silence for the same reason, and with the same guarantee: a bed that is
     // still loading is recorded as paused rather than left to arrive playing.
     audioRef.current?.pause();
@@ -591,6 +626,7 @@ export function GuidedActivityScreen({ activity }: GuidedActivityScreenProps) {
     poseTrackerRef.current?.resume();
     setSnapshot(session.snapshot());
     if (voiceEnabled) voiceRef.current?.announceResume();
+    voiceClipsRef.current?.resume();
     if (ambientOnRef.current) audioRef.current?.play();
   }, [session, voiceEnabled]);
 
@@ -890,7 +926,16 @@ export function GuidedActivityScreen({ activity }: GuidedActivityScreenProps) {
        * nothing still passes a true 0.
        */
       if (voiceEnabled) {
-        voiceRef.current?.announceCompletion(measuredReps(repTallyRef.current));
+        if (isMeditation) {
+          voiceClipsRef.current?.stop();
+          if (how === 'finished') {
+            void voiceClipsRef.current?.playClip(MEDITATION_VOICE_CLIPS.complete, false);
+          }
+        } else {
+          voiceRef.current?.announceCompletion(measuredReps(repTallyRef.current));
+        }
+      } else {
+        voiceClipsRef.current?.stop();
       }
 
       /*
@@ -974,7 +1019,7 @@ export function GuidedActivityScreen({ activity }: GuidedActivityScreenProps) {
         },
       });
     },
-    [activity, ownership, router, session, voiceEnabled],
+    [activity, isMeditation, ownership, router, session, voiceEnabled],
   );
 
   /**
@@ -1042,9 +1087,14 @@ export function GuidedActivityScreen({ activity }: GuidedActivityScreenProps) {
     // exempt from the state-change rules and always speaks. Calm by design —
     // one sentence per step, never repeated while the step lasts.
     if (voiceEnabled) {
-      voiceRef.current?.consider('ready', step.guidance);
+      if (isMeditation) {
+        const clip = meditationStepVoiceClip(activity.id, snapshot.stepIndex, step.title);
+        if (clip) void voiceClipsRef.current?.playClip(clip, true);
+      } else {
+        voiceRef.current?.consider('ready', step.guidance);
+      }
     }
-  }, [running, snapshot.currentStep, snapshot.stepIndex, voiceEnabled]);
+  }, [running, snapshot.currentStep, snapshot.stepIndex, voiceEnabled, isMeditation, activity.id]);
 
   /**
    * The breathing voice guide: one word when the phase changes, and nothing else.
@@ -1081,9 +1131,16 @@ export function GuidedActivityScreen({ activity }: GuidedActivityScreenProps) {
      * going" or anything else that would imply it had checked.
      */
     if (voiceEnabled) {
-      voiceRef.current?.consider('ready', breath?.label ?? '');
+      if (isMeditation) {
+        if (!voiceClipsRef.current?.isPlayingIntro()) {
+          const clip = meditationBreathPhaseVoiceClip(phaseId);
+          if (clip) void voiceClipsRef.current?.playClip(clip, false);
+        }
+      } else {
+        voiceRef.current?.consider('ready', breath?.label ?? '');
+      }
     }
-  }, [running, breath, voiceEnabled]);
+  }, [running, breath, voiceEnabled, isMeditation]);
 
   /**
    * Starting again after a finished session has to re-arm the once-only guard,
@@ -1104,6 +1161,7 @@ export function GuidedActivityScreen({ activity }: GuidedActivityScreenProps) {
     autoSavedRef.current = false;
     setSaving(false);
     announcedStepRef.current = null;
+    voiceClipsRef.current?.stop();
     start();
   }, [ownership, start]);
   const phaseLabel =

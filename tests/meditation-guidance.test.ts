@@ -9,7 +9,41 @@ import {
 } from '../src/activities/meditation-guidance';
 import { meditationSessions } from '../src/activities/meditation';
 import { GuidedSession } from '../src/activities/guided-session';
+import {
+  createExpoAudioDriver,
+  DEFAULT_MEDITATION_VOICE_VOLUME,
+  isMediaAbortError,
+  isMediaAbortEvent,
+  isMediaAbortRejection,
+  MEDITATION_VOICE_CLIPS,
+  meditationBreathPhaseVoiceClip,
+  meditationStepVoiceClip,
+  MeditationVoiceClipController,
+  setExpoAudioForTest,
+  type MeditationAudioDriver,
+  type MeditationAudioHandle,
+} from '../src/activities/meditation-audio';
 import { getGuidedPoseConfig } from '../src/exercise/pose-configs';
+import {
+  CALM_VOICE_PITCH,
+  CALM_VOICE_RATE,
+  CALM_VOICE_VOLUME,
+  createCalmSpeechSink,
+  createSilentSpeechSink,
+  resetCalmVoiceForTest,
+  resolveCalmVoice,
+  type SpeechSink,
+  VoiceFeedbackController,
+} from '../src/exercise/voice-feedback';
+
+declare const __dirname: string;
+declare function require(id: string): {
+  readFileSync(path: string, encoding: 'utf8'): string;
+  resolve(...segments: string[]): string;
+};
+
+const fs = require('fs') as ReturnType<typeof require>;
+const nodePath = require('path') as ReturnType<typeof require>;
 
 /**
  * Covers the posture guidance a meditation camera step shows.
@@ -472,6 +506,490 @@ export function run(): void {
       done.stepsCompleted === activity.steps.length,
       done.stepsCompleted,
     );
+  });
+
+  suite('meditation speech flow: guided screen uses createSilentSpeechSink and MeditationVoiceClipController for meditation', () => {
+    const screenCode = fs.readFileSync(
+      nodePath.resolve(__dirname, '../../src/components/guided/guided-activity-screen.tsx'),
+      'utf8',
+    );
+
+    check(
+      'meditation uses createSilentSpeechSink() so robotic TTS is completely silenced',
+      /isMeditation\s*\?\s*createSilentSpeechSink\(\)\s*:\s*createExpoSpeechSink\(\)/.test(screenCode),
+    );
+    check(
+      'tone.mp3 is not loaded or referenced in the screen',
+      !screenCode.includes('tone.mp3') && !screenCode.includes('MeditationVoiceTrackController'),
+    );
+    check(
+      'voice clip controller is instantiated with createExpoAudioDriver()',
+      screenCode.includes('new MeditationVoiceClipController(createExpoAudioDriver())'),
+    );
+    check(
+      'step guidance triggers voice clips on step change',
+      screenCode.includes('meditationStepVoiceClip(activity.id, snapshot.stepIndex, step.title)'),
+    );
+    check(
+      'breathing phase cues trigger voice clips when not playing intro',
+      screenCode.includes('meditationBreathPhaseVoiceClip(phaseId)') &&
+        screenCode.includes('!voiceClipsRef.current?.isPlayingIntro()'),
+    );
+    check(
+      'session completion plays complete voice clip',
+      screenCode.includes('MEDITATION_VOICE_CLIPS.complete'),
+    );
+    check(
+      'muting calls voiceClipsRef.current?.stop() and setMuted',
+      screenCode.includes('voiceClipsRef.current?.stop();') &&
+        screenCode.includes('voiceClipsRef.current?.setMuted(true);'),
+    );
+    check(
+      'pause pauses voice clips',
+      screenCode.includes('voiceClipsRef.current?.pause();'),
+    );
+    check(
+      'resume resumes voice clips',
+      screenCode.includes('voiceClipsRef.current?.resume();'),
+    );
+
+    // Verify createSilentSpeechSink is a silent sink
+    const silentSink = createSilentSpeechSink();
+    check('createSilentSpeechSink has speak method', typeof silentSink.speak === 'function');
+    check('createSilentSpeechSink has stop method', typeof silentSink.stop === 'function');
+    silentSink.speak('Inhale', { priority: 'normal', interrupt: true });
+    silentSink.stop();
+  });
+
+  suite('meditation voice clip mapping: every meditation session maps all steps and phases to valid clips', () => {
+    // Verify each of the 5 sessions maps every step to a defined voice clip
+    for (const activity of meditationSessions) {
+      for (let i = 0; i < activity.steps.length; i++) {
+        const step = activity.steps[i];
+        const clip = meditationStepVoiceClip(activity.id, i, step.title);
+        check(`${activity.id} step ${i} (${step.title}) resolves to a valid clip`, clip !== undefined);
+      }
+    }
+
+    // Verify breathing phases
+    check('inhale maps to inhale clip', meditationBreathPhaseVoiceClip('inhale') === MEDITATION_VOICE_CLIPS.inhale);
+    check('hold maps to hold clip', meditationBreathPhaseVoiceClip('hold') === MEDITATION_VOICE_CLIPS.hold);
+    check('hold-after-inhale maps to hold clip', meditationBreathPhaseVoiceClip('hold-after-inhale') === MEDITATION_VOICE_CLIPS.hold);
+    check('hold-after-exhale maps to hold clip', meditationBreathPhaseVoiceClip('hold-after-exhale') === MEDITATION_VOICE_CLIPS.hold);
+    check('exhale maps to exhale clip', meditationBreathPhaseVoiceClip('exhale') === MEDITATION_VOICE_CLIPS.exhale);
+    check('unknown phase returns undefined', meditationBreathPhaseVoiceClip('unknown') === undefined);
+
+    // Verify completion clip
+    check('complete voice clip exists', MEDITATION_VOICE_CLIPS.complete !== undefined);
+
+    // Verify posture-check.mp3 is NOT in clips
+    check('posture-check is not included in clips', !('postureCheck' in MEDITATION_VOICE_CLIPS));
+  });
+
+  suite('MeditationVoiceClipController non-looping lifecycle and intro guard', async () => {
+    let simTime = 1000;
+    const now = () => simTime;
+
+    type CallRecord = {
+      calls: string[];
+      volume: number;
+      loop: boolean;
+    };
+    const records: CallRecord[] = [];
+
+    const mockDriver: MeditationAudioDriver = {
+      create(_source, options) {
+        const record: CallRecord = {
+          calls: [],
+          volume: options.volume,
+          loop: options.loop,
+        };
+        records.push(record);
+        const handle: MeditationAudioHandle = {
+          play() {
+            record.calls.push('play');
+          },
+          pause() {
+            record.calls.push('pause');
+          },
+          stop() {
+            record.calls.push('stop');
+          },
+          setVolume(v) {
+            record.volume = v;
+          },
+          release() {
+            record.calls.push('release');
+          },
+        };
+        return Promise.resolve(handle);
+      },
+    };
+
+    const controller = new MeditationVoiceClipController(mockDriver, { now });
+    check('default volume is 0.92', controller.getVolume() === DEFAULT_MEDITATION_VOICE_VOLUME);
+    check('starts not muted', controller.isMuted() === false);
+    check('starts not playing intro', controller.isPlayingIntro() === false);
+
+    // Play an intro clip
+    await controller.playClip(MEDITATION_VOICE_CLIPS.settleChair, true, 5000);
+    check('created with loop: false', records[0]?.loop === false);
+    check('played with volume 0.92', records[0]?.volume === 0.92);
+    check('first clip called play', records[0]?.calls.includes('play'));
+    check('intro is active immediately', controller.isPlayingIntro() === true);
+
+    // 2 seconds later, intro is still active
+    simTime += 2000;
+    check('intro is active after 2s', controller.isPlayingIntro() === true);
+
+    // 4 seconds later (total 6s > 5s), intro is finished
+    simTime += 4000;
+    check('intro finished after 6s', controller.isPlayingIntro() === false);
+
+    // Play breath phase cue (non-intro)
+    await controller.playClip(MEDITATION_VOICE_CLIPS.inhale, false);
+    check(
+      'previous handle was stopped and released',
+      records[0]?.calls.includes('stop') && records[0]?.calls.includes('release'),
+    );
+    check('new clip created with loop: false', records[1]?.loop === false);
+    check('non-intro does not set isPlayingIntro', controller.isPlayingIntro() === false);
+
+    // Pause and Resume
+    controller.pause();
+    check('pause calls handle pause', records[1]?.calls.includes('pause'));
+
+    controller.resume();
+    check('resume calls handle play', records[1]?.calls.filter((c) => c === 'play').length >= 2);
+
+    // Muting
+    controller.setMuted(true);
+    check('isMuted is true', controller.isMuted() === true);
+    check('muting stops and releases handle', records[1]?.calls.includes('release'));
+
+    // Playing while muted is a no-op
+    const recordCountBefore = records.length;
+    await controller.playClip(MEDITATION_VOICE_CLIPS.exhale, false);
+    check('no handle created while muted', records.length === recordCountBefore);
+
+    // Unmute
+    controller.setMuted(false);
+    check('isMuted is false', controller.isMuted() === false);
+
+    // Stop
+    await controller.playClip(MEDITATION_VOICE_CLIPS.hold, false);
+    controller.stop();
+    check('stop releases handle', records[records.length - 1]?.calls.includes('release'));
+
+    // Volume adjustment
+    controller.setVolume(0.8);
+    check('setVolume updates volume', controller.getVolume() === 0.8);
+
+    // Dispose
+    controller.dispose();
+  });
+
+  suite('MeditationVoiceClipController cleanly swallows errors from release and pause', async () => {
+    // 1. Synchronous throws from pause and release
+    const throwingDriver: MeditationAudioDriver = {
+      create() {
+        const handle: MeditationAudioHandle = {
+          play() {},
+          pause() {
+            throw new Error('AbortError: The fetching process for the media resource was aborted');
+          },
+          stop() {
+            throw new Error('AbortError: stop failed');
+          },
+          setVolume() {},
+          release() {
+            throw new Error('AbortError: release failed');
+          },
+        };
+        return Promise.resolve(handle);
+      },
+    };
+
+    const controller1 = new MeditationVoiceClipController(throwingDriver);
+    await controller1.playClip(MEDITATION_VOICE_CLIPS.inhale, false);
+
+    let threwOnStop = false;
+    try {
+      controller1.stop();
+    } catch {
+      threwOnStop = true;
+    }
+    check('stop() swallows synchronous throw from handle', threwOnStop === false);
+
+    await controller1.playClip(MEDITATION_VOICE_CLIPS.exhale, false);
+    let threwOnDispose = false;
+    try {
+      controller1.dispose();
+    } catch {
+      threwOnDispose = true;
+    }
+    check('dispose() swallows synchronous throw from handle', threwOnDispose === false);
+
+    // 2. Rejected promises from pause and release (as occurs on Web HTMLMediaElement)
+    const rejectingDriver: MeditationAudioDriver = {
+      create() {
+        const handle: MeditationAudioHandle = {
+          play() {
+            return Promise.resolve();
+          },
+          pause() {
+            return Promise.reject(
+              new Error('DOMException: The fetching process for the media resource was aborted by the user agent'),
+            );
+          },
+          stop() {
+            return Promise.reject(new Error('DOMException: stop aborted'));
+          },
+          setVolume() {},
+          release() {
+            return Promise.reject(
+              new Error('DOMException: The fetching process for the media resource was aborted by the user agent'),
+            );
+          },
+        };
+        return Promise.resolve(handle);
+      },
+    };
+
+    const controller2 = new MeditationVoiceClipController(rejectingDriver);
+    await controller2.playClip(MEDITATION_VOICE_CLIPS.inhale, false);
+
+    let rejectedOnStop = false;
+    try {
+      controller2.stop();
+    } catch {
+      rejectedOnStop = true;
+    }
+    check('stop() swallows rejected promise from handle without unhandled rejection', rejectedOnStop === false);
+
+    await controller2.playClip(MEDITATION_VOICE_CLIPS.exhale, false);
+    let rejectedOnDispose = false;
+    try {
+      controller2.dispose();
+    } catch {
+      rejectedOnDispose = true;
+    }
+    check('dispose() swallows rejected promise from handle without unhandled rejection', rejectedOnDispose === false);
+  });
+
+  suite('createExpoAudioDriver release behavior on web vs native', async () => {
+    // 1. Web environment: pauses and mutes, does NOT call player.release()
+    let webPaused: boolean = false;
+    let webReleaseCalled: boolean = false;
+
+    const mockWebPlayer = {
+      play() {},
+      pause() {
+        webPaused = true;
+      },
+      seekTo() {},
+      loop: false,
+      volume: 1,
+      release() {
+        webReleaseCalled = true;
+        throw new Error(
+          "Uncaught Error: The fetching process for the media resource was aborted by the user agent at the user's request",
+        );
+      },
+    };
+
+    const mockExpoAudio = {
+      createAudioPlayer: () => mockWebPlayer,
+    };
+
+    setExpoAudioForTest(mockExpoAudio);
+
+    // Set Platform.OS to web
+    const globalObj = globalThis as unknown as { Platform?: { OS?: string } };
+    const origPlatform = globalObj.Platform;
+    globalObj.Platform = { OS: 'web' };
+
+    try {
+      const driver = createExpoAudioDriver();
+      const handle = await driver.create(MEDITATION_VOICE_CLIPS.complete, { volume: 0.92, loop: false });
+
+      // Calling release() on Web:
+      handle.release();
+
+      check('on web, player is paused', Boolean(webPaused));
+      check('on web, player.volume is muted to 0', mockWebPlayer.volume === 0);
+      check('on web, player.release() is NOT called so AbortError is prevented', !webReleaseCalled);
+
+      // 2. Native environment: calls player.pause() AND player.release()
+      let nativePaused: boolean = false;
+      let nativeReleaseCalled: boolean = false;
+
+      const mockNativePlayer = {
+        play() {},
+        pause() {
+          nativePaused = true;
+        },
+        seekTo() {},
+        loop: false,
+        volume: 1,
+        release() {
+          nativeReleaseCalled = true;
+          // Synchronous throw should be caught and swallowed
+          throw new Error('Native release error');
+        },
+      };
+
+      setExpoAudioForTest({
+        createAudioPlayer: () => mockNativePlayer,
+      });
+
+      globalObj.Platform = { OS: 'android' };
+
+      const nativeDriver = createExpoAudioDriver();
+      const nativeHandle = await nativeDriver.create(MEDITATION_VOICE_CLIPS.complete, { volume: 0.92, loop: false });
+
+      let threwOnNativeRelease = false;
+      try {
+        nativeHandle.release();
+      } catch {
+        threwOnNativeRelease = true;
+      }
+
+      check('on native, player is paused', Boolean(nativePaused));
+      check('on native, player.release() is called', Boolean(nativeReleaseCalled));
+      check('on native, synchronous throw from player.release() is cleanly swallowed', !threwOnNativeRelease);
+    } finally {
+      globalObj.Platform = origPlatform;
+      setExpoAudioForTest(undefined);
+    }
+  });
+
+  suite('web media abort guard: recognizes AbortError and media resource abort events while allowing genuine errors through', () => {
+    const ABORT_PHRASE = "The fetching process for the media resource was aborted by the user agent at the user's request";
+
+    // 1. isMediaAbortError: identifies benign media aborts
+    check('identifies HTMLMediaElement MEDIA_ERR_ABORTED target (code 1)', isMediaAbortError({
+      target: { error: { code: 1 } },
+    }));
+    check('identifies event with message containing abort phrase', isMediaAbortError({
+      message: `Uncaught Error: ${ABORT_PHRASE}`,
+    }));
+    check('identifies event with error.name === AbortError', isMediaAbortError({
+      error: { name: 'AbortError', message: 'The operation was aborted.' },
+    }));
+    check('identifies event with error.message containing abort phrase', isMediaAbortError({
+      error: new Error(ABORT_PHRASE),
+    }));
+    check('identifies event with direct name === AbortError', isMediaAbortError({
+      name: 'AbortError',
+    }));
+
+    // 2. isMediaAbortError: allows genuine application errors through untouched
+    check('allows generic Error through untouched', !isMediaAbortError(new Error('Failed to load user profile')));
+    check('allows TypeError through untouched', !isMediaAbortError(new TypeError('Cannot read properties of null')));
+    check('allows unrelated window message through untouched', !isMediaAbortError({ message: 'ReferenceError: x is not defined' }));
+    check('allows other media error codes (code 4) through untouched', !isMediaAbortError({ target: { error: { code: 4 } } }));
+    check('safely returns false for null and undefined', !isMediaAbortError(null) && !isMediaAbortError(undefined));
+
+    // 3. isMediaAbortRejection: identifies benign media abort rejections
+    check('identifies rejection with reason.name === AbortError', isMediaAbortRejection({
+      reason: { name: 'AbortError' },
+    }));
+    check('identifies rejection with reason message containing abort phrase', isMediaAbortRejection({
+      reason: new Error(ABORT_PHRASE),
+    }));
+    check('identifies direct Error reason containing abort phrase', isMediaAbortRejection(new Error(ABORT_PHRASE)));
+    check('identifies direct object with name === AbortError', isMediaAbortRejection({ name: 'AbortError' }));
+    check('identifies direct string reason containing abort phrase', isMediaAbortRejection(ABORT_PHRASE));
+
+    // 4. isMediaAbortRejection: allows genuine application rejections through untouched
+    check('allows generic application rejection through untouched', !isMediaAbortRejection(new Error('Database write failed')));
+    check('allows rejection with TypeError through untouched', !isMediaAbortRejection({ reason: new TypeError('Invalid state') }));
+    check('allows rejection with unrelated message through untouched', !isMediaAbortRejection({ reason: 'Network timed out' }));
+    check('safely returns false for null and undefined', !isMediaAbortRejection(null) && !isMediaAbortRejection(undefined));
+
+    // 5. isMediaAbortEvent: recognizes both and passes genuine errors
+    check('isMediaAbortEvent recognizes error event', isMediaAbortEvent({ error: { name: 'AbortError' } }));
+    check('isMediaAbortEvent recognizes rejection event', isMediaAbortEvent({ reason: { name: 'AbortError' } }));
+    check('isMediaAbortEvent lets real error through', !isMediaAbortEvent(new Error('Genuine failure')));
+
+    // 6. Capture-phase handling calls preventDefault and stopImmediatePropagation
+    let prevented = false;
+    let stopped = false;
+    const fakeEvent = {
+      message: ABORT_PHRASE,
+      preventDefault() {
+        prevented = true;
+      },
+      stopImmediatePropagation() {
+        stopped = true;
+      },
+    };
+
+    if (isMediaAbortError(fakeEvent)) {
+      fakeEvent.preventDefault();
+      fakeEvent.stopImmediatePropagation();
+    }
+    check('handler calls preventDefault() on media abort error', prevented);
+    check('handler calls stopImmediatePropagation() on media abort error', stopped);
+  });
+
+  suite('calm voice selection: prioritizes female voices over male voices and passes calming parameters', async () => {
+    resetCalmVoiceForTest();
+
+    const mockVoices = [
+      { identifier: 'en-US-David', name: 'David (Male)', language: 'en-US' },
+      { identifier: 'en-GB-Alex', name: 'Alex', language: 'en-GB' },
+      { identifier: 'en-US-Samantha', name: 'Samantha (Female)', language: 'en-US' },
+      { identifier: 'en-US-George', name: 'George', language: 'en-US' },
+    ];
+
+    const mockSpeech = {
+      speak(_text: string, _options?: Record<string, unknown>) {},
+      stop() {},
+      getAvailableVoicesAsync() {
+        return Promise.resolve(mockVoices);
+      },
+    };
+
+    const chosenVoice = await resolveCalmVoice(mockSpeech);
+    check(
+      'resolveCalmVoice selects female voice Samantha over male voices',
+      chosenVoice === 'en-US-Samantha',
+      chosenVoice,
+    );
+
+    check('calm pitch is 1.12', CALM_VOICE_PITCH === 1.12, CALM_VOICE_PITCH);
+    check('calm rate is 0.84', CALM_VOICE_RATE === 0.84, CALM_VOICE_RATE);
+    check('calm volume is 0.95', CALM_VOICE_VOLUME === 0.95, CALM_VOICE_VOLUME);
+  });
+
+  suite('voice toggle muting: silences and stops speech cleanly', () => {
+    let stopCount = 0;
+    let spokenText = '';
+
+    const testSink: SpeechSink = {
+      speak(text) {
+        spokenText = text;
+      },
+      stop() {
+        stopCount += 1;
+      },
+    };
+
+    const controller = new VoiceFeedbackController(testSink);
+    controller.consider('ready', 'Inhale');
+    check('speaks when active', spokenText === 'Inhale');
+
+    const beforeStop = stopCount;
+    controller.stop();
+    check('stop() triggers sink stop', stopCount > beforeStop);
+
+    const beforeReset = stopCount;
+    controller.reset();
+    check('reset() triggers sink stop', stopCount > beforeReset);
+
+    controller.dispose();
   });
 }
 

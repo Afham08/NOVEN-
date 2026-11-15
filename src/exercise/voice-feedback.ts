@@ -288,6 +288,10 @@ export class VoiceFeedbackController {
    * Cancels anything in flight and forgets the observed state, so a new session
    * starts from a clean slate and will announce its own setup problems.
    */
+  stop(): void {
+    this.safeStop();
+  }
+
   reset(): void {
     this.lastKind = null;
     this.suspended = false;
@@ -337,8 +341,9 @@ export class VoiceFeedbackController {
  */
 const COMPLETION_TALLY_POLICY: KindPolicy = { ...POLICY.completed, interrupt: false };
 
-export const CALM_VOICE_RATE = 0.88;
-export const CALM_VOICE_PITCH = 1.10;
+export const CALM_VOICE_RATE = 0.84;
+export const CALM_VOICE_PITCH = 1.12;
+export const CALM_VOICE_VOLUME = 0.95;
 export const STANDARD_VOICE_RATE = 0.95;
 export const STANDARD_VOICE_PITCH = 1.00;
 
@@ -348,6 +353,7 @@ export type SpeechSinkOptions = {
   profile?: SpeechVoiceProfile;
   rate?: number;
   pitch?: number;
+  volume?: number;
 };
 
 /**
@@ -356,7 +362,7 @@ export type SpeechSinkOptions = {
  * session instead of a crash at import time, and so the decision layer above can
  * be unit-tested on a machine with no native runtime at all.
  */
-type SpeechModule = {
+export type SpeechModule = {
   speak(text: string, options?: Record<string, unknown>): void;
   stop(): Promise<void> | void;
   getAvailableVoicesAsync?: () => Promise<{ identifier: string; name?: string; language?: string }[]>;
@@ -375,28 +381,61 @@ function loadSpeech(): SpeechModule | null {
   return speechModule;
 }
 
+/**
+ * Explicitly excludes male and harsh robotic voices from calming voice guidance.
+ */
+export const MALE_OR_ROBOTIC_VOICE_PATTERN =
+  /(?:^|[^a-z])(male|man)(?:$|[^a-z])|\b(?:daniel|david|alex|fred|tom|mark|george|arthur|oliver|rishi|espeak)\b/i;
+
+/**
+ * Explicitly prioritizes soft, natural female voices for relaxation.
+ */
+export const CALM_FEMALE_VOICE_PATTERN =
+  /female|woman|google uk english female|google us english|samantha|jenny|aria|zira|victoria|karen|moira|tessa|serena|hazel|susan|ava|allison|natural|neural/i;
+
 let preferredCalmVoiceIdentifier: string | undefined;
 let voiceSearchInitiated = false;
 
-function resolveCalmVoice(speech: SpeechModule): void {
-  if (voiceSearchInitiated || typeof speech.getAvailableVoicesAsync !== 'function') return;
+export function resetCalmVoiceForTest(): void {
+  preferredCalmVoiceIdentifier = undefined;
+  voiceSearchInitiated = false;
+}
+
+export function getPreferredCalmVoiceIdentifier(): string | undefined {
+  return preferredCalmVoiceIdentifier;
+}
+
+export function resolveCalmVoice(speech: SpeechModule): Promise<string | undefined> {
+  if (voiceSearchInitiated && preferredCalmVoiceIdentifier) {
+    return Promise.resolve(preferredCalmVoiceIdentifier);
+  }
   voiceSearchInitiated = true;
-  speech.getAvailableVoicesAsync().then((voices) => {
-    if (!Array.isArray(voices)) return;
-    const enVoices = voices.filter(
-      (v) => typeof v.language === 'string' && v.language.toLowerCase().startsWith('en'),
-    );
-    const preferred = enVoices.find((v) =>
-      /female|samantha|karen|moira|serena|fiona|victoria|zira|natural/i.test(
-        `${v.name ?? ''} ${v.identifier ?? ''}`,
-      ),
-    ) ?? enVoices[0];
-    if (preferred?.identifier) {
-      preferredCalmVoiceIdentifier = preferred.identifier;
-    }
-  }).catch(() => {
-    // Intentionally swallowed — platform lacks voice enum or permission denied.
-  });
+  if (typeof speech.getAvailableVoicesAsync !== 'function') {
+    return Promise.resolve(undefined);
+  }
+  return speech
+    .getAvailableVoicesAsync()
+    .then((voices) => {
+      if (!Array.isArray(voices) || voices.length === 0) return undefined;
+      const enVoices = voices.filter((v) => {
+        const lang = (v.language ?? (v as { lang?: string }).lang ?? '').toLowerCase();
+        return lang.startsWith('en');
+      });
+      const nonMaleVoices = enVoices.filter((v) => {
+        const label = `${v.name ?? ''} ${v.identifier ?? ''}`;
+        return !MALE_OR_ROBOTIC_VOICE_PATTERN.test(label);
+      });
+      const candidates = nonMaleVoices.length > 0 ? nonMaleVoices : enVoices;
+      const preferred =
+        candidates.find((v) =>
+          CALM_FEMALE_VOICE_PATTERN.test(`${v.name ?? ''} ${v.identifier ?? ''}`),
+        ) ?? candidates[0];
+      if (preferred?.identifier) {
+        preferredCalmVoiceIdentifier = preferred.identifier;
+      }
+      return preferredCalmVoiceIdentifier;
+    })
+    .catch(() => undefined);
 }
 
 /** The real sink. Every native error is absorbed rather than surfaced. */
@@ -407,7 +446,7 @@ export function createExpoSpeechSink(options?: SpeechSinkOptions): SpeechSink {
       const speech = loadSpeech();
       if (!speech) return;
       if (isCalm) {
-        resolveCalmVoice(speech);
+        void resolveCalmVoice(speech);
       }
       try {
         const rate =
@@ -415,11 +454,14 @@ export function createExpoSpeechSink(options?: SpeechSinkOptions): SpeechSink {
           (isCalm ? CALM_VOICE_RATE : priority === 'high' ? 1.05 : STANDARD_VOICE_RATE);
         const pitch =
           options?.pitch ?? (isCalm ? CALM_VOICE_PITCH : STANDARD_VOICE_PITCH);
+        const volume =
+          options?.volume ?? (isCalm ? CALM_VOICE_VOLUME : 1.0);
 
         const speakOptions: Record<string, unknown> = {
           language: 'en-US',
           rate,
           pitch,
+          volume,
           // expo-speech reports per-utterance failures through these callbacks.
           // There is nothing useful to do with them, and an unhandled one would
           // surface as a red box, so they are absorbed here.
@@ -454,4 +496,15 @@ export function createExpoSpeechSink(options?: SpeechSinkOptions): SpeechSink {
 /** Creates a speech sink configured with the calming meditation profile. */
 export function createCalmSpeechSink(options?: SpeechSinkOptions): SpeechSink {
   return createExpoSpeechSink({ profile: 'calm', ...options });
+}
+
+/**
+ * Creates a silent speech sink that discards all speech calls.
+ * Used during meditation sessions so robotic TTS is completely silent.
+ */
+export function createSilentSpeechSink(): SpeechSink {
+  return {
+    speak() {},
+    stop() {},
+  };
 }
