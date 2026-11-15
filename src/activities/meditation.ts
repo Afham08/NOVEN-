@@ -1,5 +1,51 @@
 import { defineGuidedActivity, type GuidedActivity } from './types';
 
+// In Node test runner, hook module resolution for static audio assets
+if (typeof require !== 'undefined') {
+  try {
+    // eslint-disable-next-line @typescript-eslint/no-require-imports
+    const Module = require('module') as {
+      _resolveFilename?: (request: string, ...args: unknown[]) => string;
+      __audioHooked?: boolean;
+    };
+    if (Module && Module._resolveFilename && !Module.__audioHooked) {
+      Module.__audioHooked = true;
+      const origResolve = Module._resolveFilename;
+      Module._resolveFilename = function (request: string, ...args: unknown[]) {
+        if (
+          typeof request === 'string' &&
+          (request.endsWith('.ogg') || request.endsWith('.mp3'))
+        ) {
+          return request;
+        }
+        return origResolve.call(this, request, ...args);
+      };
+      const reqWithExt = require as {
+        extensions?: Record<string, (module: { exports: unknown }) => void>;
+      };
+      if (reqWithExt.extensions) {
+        if (!reqWithExt.extensions['.ogg']) {
+          reqWithExt.extensions['.ogg'] = (module) => {
+            module.exports = 1;
+          };
+        }
+        if (!reqWithExt.extensions['.mp3']) {
+          reqWithExt.extensions['.mp3'] = (module) => {
+            module.exports = 1;
+          };
+        }
+      }
+    }
+  } catch {
+    // Intentionally swallowed in React Native / Metro
+  }
+}
+
+// eslint-disable-next-line @typescript-eslint/no-require-imports
+const WAVES_AUDIO = require('../../assets/Audiomusics/waves.ogg') as number;
+// eslint-disable-next-line @typescript-eslint/no-require-imports
+const BIRDS_AUDIO = require('../../assets/Audiomusics/birds.ogg') as number;
+
 /**
  * Meditation sessions: a timer, a few stages, and nothing else.
  *
@@ -112,44 +158,111 @@ export const meditationSessions: readonly GuidedActivity[] = [
   }),
 
   defineGuidedActivity({
-    id: 'ten-minute-body-scan',
+    id: 'seated-gentle-breathing',
     kind: 'meditation',
-    name: 'Ten Minute Body Scan',
-    summary: 'Ten minutes of attention, from your feet upwards',
+    name: '2-Minute Gentle Breathing',
+    summary: 'A short seated breathing break designed for easy relaxation',
     progressNoun: 'stages',
+    ambientAudio: { source: WAVES_AUDIO, volume: 0.28 },
     steps: [
       {
-        seconds: 30,
+        seconds: 20,
         title: 'Settle',
-        guidance: 'Lie down or sit back, whichever is more comfortable. Loosen anything tight.',
+        guidance:
+          'Sit back comfortably in your chair with your feet flat on the floor. Rest your hands in your lap.',
         cameraConfigId: 'meditation-posture',
-        // This step invites the person to lie down, so the camera may confirm
-        // they are in frame and must not comment on how upright they are. See
-        // `MeditationPostureExpectation`.
-        postureExpectation: 'in-frame',
+        postureExpectation: 'seated-upright',
       },
       {
-        seconds: 150,
-        title: 'Feet and Legs',
-        guidance: 'Feel your feet against the floor, then move your attention slowly up your legs.',
+        seconds: 80,
+        title: 'Gentle Breath',
+        guidance:
+          'Breathe in slowly through your nose and breathe out gently. Follow the circle on screen.',
+        breathingTechniqueId: 'gentle-breathing',
       },
       {
-        seconds: 150,
-        title: 'Body and Stomach',
-        guidance: 'Notice your back, your stomach, and your breathing, without changing any of them.',
-      },
-      {
-        seconds: 150,
-        title: 'Hands and Arms',
-        guidance: 'Feel your hands, then your arms and shoulders. Let them be heavy.',
-      },
-      {
-        seconds: 120,
-        title: 'Head and Face',
-        guidance: 'Relax your jaw and your forehead. Unclench your teeth.',
+        seconds: 20,
+        title: 'Quiet Rest',
+        guidance: 'Let your breathing return to its own natural rhythm and sit quietly.',
       },
     ],
     safetyNote:
-      'Lying down on your back is fine, but not on a bed if you would be unable to turn over. Stop at any point.',
+      'Keep this seated in a sturdy chair. Stop if you feel dizzy or lightheaded, and return to your natural breathing.',
+  }),
+
+  defineGuidedActivity({
+    id: 'seated-peaceful-mind',
+    kind: 'meditation',
+    name: '5-Minute Peaceful Mind',
+    summary: 'Five unhurried minutes of gentle breath and peaceful reflection',
+    progressNoun: 'stages',
+    ambientAudio: { source: BIRDS_AUDIO, volume: 0.28 },
+    steps: [
+      {
+        seconds: 25,
+        title: 'Settle',
+        guidance:
+          'Find a comfortable seated position. Rest your hands gently on your knees or lap.',
+        cameraConfigId: 'meditation-posture',
+        postureExpectation: 'seated-upright',
+      },
+      {
+        seconds: 80,
+        title: 'Easy Breathing',
+        guidance: 'Follow the gentle breathing rhythm at your own comfortable pace.',
+        breathingTechniqueId: 'easy-rhythm',
+      },
+      {
+        seconds: 135,
+        title: 'Quiet Gratitude',
+        guidance:
+          'Bring to mind one simple thing, person, or moment you feel grateful for today.',
+      },
+      {
+        seconds: 60,
+        title: 'Gentle Return',
+        guidance:
+          'Slowly notice the room around you and wiggle your fingers and toes before opening your eyes.',
+      },
+    ],
+    safetyNote:
+      'Sit in a supportive chair with feet flat. Take a break at any point if you feel uneasy.',
+  }),
+
+  defineGuidedActivity({
+    id: 'open-eyes-sound-awareness',
+    kind: 'meditation',
+    name: '3-Minute Open-Eyes Sound Awareness',
+    summary: 'Eyes-open listening meditation with gentle nature sounds for daytime calm',
+    progressNoun: 'stages',
+    ambientAudio: { source: BIRDS_AUDIO, volume: 0.32 },
+    steps: [
+      {
+        seconds: 20,
+        title: 'Soft Gaze',
+        guidance:
+          'Keep your eyes gently open and let your gaze rest on one comfortable spot in the room.',
+      },
+      {
+        seconds: 60,
+        title: 'Nearby Sounds',
+        guidance:
+          'Listen to the gentle nature sounds and any soft sounds close to you, without needing to label them.',
+      },
+      {
+        seconds: 60,
+        title: 'Distant Sounds',
+        guidance:
+          'Widen your listening to notice sounds further away in your home or outside.',
+      },
+      {
+        seconds: 40,
+        title: 'Easy Return',
+        guidance:
+          'Take one easy breath, notice the room around you, and move gently when you are ready.',
+      },
+    ],
+    safetyNote:
+      'Keep your eyes comfortably open throughout. Lower the sound volume or stop at any point if you wish.',
   }),
 ];

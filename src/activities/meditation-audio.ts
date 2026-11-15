@@ -64,6 +64,105 @@
 
 import type { GuidedActivity } from './types';
 
+// In Node test runner, hook module resolution for static audio assets
+if (typeof require !== 'undefined') {
+  try {
+    // eslint-disable-next-line @typescript-eslint/no-require-imports
+    const Module = require('module') as {
+      _resolveFilename?: (request: string, ...args: unknown[]) => string;
+      __audioHooked?: boolean;
+    };
+    if (Module && Module._resolveFilename && !Module.__audioHooked) {
+      Module.__audioHooked = true;
+      const origResolve = Module._resolveFilename;
+      Module._resolveFilename = function (request: string, ...args: unknown[]) {
+        if (
+          typeof request === 'string' &&
+          (request.endsWith('.ogg') || request.endsWith('.mp3'))
+        ) {
+          return request;
+        }
+        return origResolve.call(this, request, ...args);
+      };
+      const reqWithExt = require as {
+        extensions?: Record<string, (module: { exports: unknown }) => void>;
+      };
+      if (reqWithExt.extensions) {
+        if (!reqWithExt.extensions['.ogg']) {
+          reqWithExt.extensions['.ogg'] = (module) => {
+            module.exports = 1;
+          };
+        }
+        if (!reqWithExt.extensions['.mp3']) {
+          reqWithExt.extensions['.mp3'] = (module) => {
+            module.exports = 1;
+          };
+        }
+      }
+    }
+  } catch {
+    // Intentionally swallowed in React Native / Metro
+  }
+}
+
+// Static audio requires for ElevenLabs meditation voice clips
+const INHALE_VOICE = require('../../assets/Audiomusics/voice/inhale.mp3') as number;
+const HOLD_VOICE = require('../../assets/Audiomusics/voice/hold.mp3') as number;
+const EXHALE_VOICE = require('../../assets/Audiomusics/voice/exhale.mp3') as number;
+const COMPLETE_VOICE = require('../../assets/Audiomusics/voice/complete.mp3') as number;
+const SETTLE_CHAIR_VOICE = require('../../assets/Audiomusics/voice/settle-chair.mp3') as number;
+const GENTLE_BREATH_VOICE = require('../../assets/Audiomusics/voice/gentle-breath.mp3') as number;
+const QUIET_REST_VOICE = require('../../assets/Audiomusics/voice/quiet-rest.mp3') as number;
+const PEACEFUL_MIND_START_VOICE = require('../../assets/Audiomusics/voice/peaceful-mind-start.mp3') as number;
+const PEACEFUL_MIND_MID_VOICE = require('../../assets/Audiomusics/voice/peaceful-mind-mid.mp3') as number;
+const OPEN_EYES_START_VOICE = require('../../assets/Audiomusics/voice/open-eyes-start.mp3') as number;
+const OPEN_EYES_LISTEN_VOICE = require('../../assets/Audiomusics/voice/open-eyes-listen.mp3') as number;
+
+/** Default prominent volume for meditation voice clips (0.92). */
+export const DEFAULT_MEDITATION_VOICE_VOLUME = 0.92;
+
+export const MEDITATION_VOICE_CLIPS = {
+  inhale: INHALE_VOICE,
+  hold: HOLD_VOICE,
+  exhale: EXHALE_VOICE,
+  complete: COMPLETE_VOICE,
+  settleChair: SETTLE_CHAIR_VOICE,
+  gentleBreath: GENTLE_BREATH_VOICE,
+  quietRest: QUIET_REST_VOICE,
+  peacefulMindStart: PEACEFUL_MIND_START_VOICE,
+  peacefulMindMid: PEACEFUL_MIND_MID_VOICE,
+  openEyesStart: OPEN_EYES_START_VOICE,
+  openEyesListen: OPEN_EYES_LISTEN_VOICE,
+} as const;
+
+export const MEDITATION_CLIP_DURATIONS_MS: Record<number | string, number> = {
+  [INHALE_VOICE]: 1100,
+  [HOLD_VOICE]: 1100,
+  [EXHALE_VOICE]: 1300,
+  [COMPLETE_VOICE]: 9561,
+  [SETTLE_CHAIR_VOICE]: 6000,
+  [GENTLE_BREATH_VOICE]: 6600,
+  [QUIET_REST_VOICE]: 4800,
+  [PEACEFUL_MIND_START_VOICE]: 6400,
+  [PEACEFUL_MIND_MID_VOICE]: 8000,
+  [OPEN_EYES_START_VOICE]: 5900,
+  [OPEN_EYES_LISTEN_VOICE]: 7400,
+};
+
+export const MEDITATION_VOICE_CLIP_DURATIONS_MS = {
+  inhale: 1100,
+  hold: 1100,
+  exhale: 1300,
+  complete: 9561,
+  settleChair: 6000,
+  gentleBreath: 6600,
+  quietRest: 4800,
+  peacefulMindStart: 6400,
+  peacefulMindMid: 8000,
+  openEyesStart: 5900,
+  openEyesListen: 7400,
+} as const;
+
 /**
  * How quiet the ambient bed is by default.
  *
@@ -130,13 +229,13 @@ export type MeditationAudioSource = number | string;
  * playback position, which is not a thing it should know about.
  */
 export type MeditationAudioHandle = {
-  play(): void;
-  pause(): void;
+  play(): Promise<void> | void;
+  pause(): Promise<void> | void;
   /** Stop and rewind to the beginning, so a restart starts from the top. */
-  stop(): void;
+  stop(): Promise<void> | void;
   setVolume(volume: number): void;
   /** Free the native player. The handle is unusable afterwards. */
-  release(): void;
+  release(): Promise<void> | void;
 };
 
 /** The native boundary. Everything above this line is pure and testable. */
@@ -456,7 +555,10 @@ export class MeditationAudioController {
 
 function safePlay(handle: MeditationAudioHandle): boolean {
   try {
-    handle.play();
+    const res = handle.play() as unknown;
+    if (res && typeof (res as Promise<void>).catch === 'function') {
+      (res as Promise<void>).catch(() => {});
+    }
     return true;
   } catch {
     return false;
@@ -465,7 +567,10 @@ function safePlay(handle: MeditationAudioHandle): boolean {
 
 function safePause(handle: MeditationAudioHandle): boolean {
   try {
-    handle.pause();
+    const res = handle.pause() as unknown;
+    if (res && typeof (res as Promise<void>).catch === 'function') {
+      (res as Promise<void>).catch(() => {});
+    }
     return true;
   } catch {
     return false;
@@ -474,7 +579,10 @@ function safePause(handle: MeditationAudioHandle): boolean {
 
 function safeStop(handle: MeditationAudioHandle): void {
   try {
-    handle.stop();
+    const res = handle.stop() as unknown;
+    if (res && typeof (res as Promise<void>).catch === 'function') {
+      (res as Promise<void>).catch(() => {});
+    }
   } catch {
     // Intentionally swallowed.
   }
@@ -490,9 +598,204 @@ function safeSetVolume(handle: MeditationAudioHandle, volume: number): void {
 
 function safeRelease(handle: MeditationAudioHandle): void {
   try {
-    handle.release();
+    const res = handle.release() as unknown;
+    if (res && typeof (res as Promise<void>).catch === 'function') {
+      (res as Promise<void>).catch(() => {});
+    }
   } catch {
     // Intentionally swallowed.
+  }
+}
+
+/**
+ * Maps a meditation step to its assigned ElevenLabs female voice clip.
+ */
+export function meditationStepVoiceClip(
+  activityId: string,
+  stepIndex: number,
+  stepTitle?: string,
+): MeditationAudioSource | undefined {
+  if (activityId === 'seated-gentle-breathing') {
+    if (stepIndex === 0) return MEDITATION_VOICE_CLIPS.settleChair;
+    if (stepIndex === 1) return MEDITATION_VOICE_CLIPS.gentleBreath;
+    if (stepIndex === 2) return MEDITATION_VOICE_CLIPS.quietRest;
+  } else if (activityId === 'seated-peaceful-mind') {
+    if (stepIndex === 0) return MEDITATION_VOICE_CLIPS.peacefulMindStart;
+    if (stepIndex === 1) return MEDITATION_VOICE_CLIPS.gentleBreath;
+    if (stepIndex === 2) return MEDITATION_VOICE_CLIPS.peacefulMindMid;
+    if (stepIndex === 3) return MEDITATION_VOICE_CLIPS.quietRest;
+  } else if (activityId === 'open-eyes-sound-awareness') {
+    if (stepIndex === 0) return MEDITATION_VOICE_CLIPS.openEyesStart;
+    if (stepIndex === 1) return MEDITATION_VOICE_CLIPS.openEyesListen;
+    if (stepIndex === 2) return MEDITATION_VOICE_CLIPS.openEyesListen;
+    if (stepIndex === 3) return MEDITATION_VOICE_CLIPS.quietRest;
+  } else if (activityId === 'one-minute-calm') {
+    if (stepIndex === 0) return MEDITATION_VOICE_CLIPS.settleChair;
+    if (stepIndex === 1) return MEDITATION_VOICE_CLIPS.gentleBreath;
+    if (stepIndex === 2) return MEDITATION_VOICE_CLIPS.quietRest;
+  } else if (activityId === 'five-minute-breathing') {
+    if (stepIndex === 0) return MEDITATION_VOICE_CLIPS.settleChair;
+    if (stepIndex === 1) return MEDITATION_VOICE_CLIPS.settleChair;
+    if (stepIndex === 2) return MEDITATION_VOICE_CLIPS.gentleBreath;
+    if (stepIndex === 3) return MEDITATION_VOICE_CLIPS.openEyesListen;
+    if (stepIndex === 4) return MEDITATION_VOICE_CLIPS.quietRest;
+  }
+
+  const title = (stepTitle ?? '').toLowerCase();
+  if (title.includes('settle') || title.includes('sit')) return MEDITATION_VOICE_CLIPS.settleChair;
+  if (title.includes('breath')) return MEDITATION_VOICE_CLIPS.gentleBreath;
+  if (title.includes('rest') || title.includes('return')) return MEDITATION_VOICE_CLIPS.quietRest;
+  if (title.includes('sound') || title.includes('listen') || title.includes('widen')) {
+    return MEDITATION_VOICE_CLIPS.openEyesListen;
+  }
+  if (title.includes('gratitude') || title.includes('mind')) {
+    return MEDITATION_VOICE_CLIPS.peacefulMindMid;
+  }
+  if (title.includes('gaze') || title.includes('eyes')) {
+    return MEDITATION_VOICE_CLIPS.openEyesStart;
+  }
+
+  return undefined;
+}
+
+/**
+ * Maps a breathing cycle phase ('inhale' | 'hold' | 'exhale') to its matching voice clip.
+ */
+export function meditationBreathPhaseVoiceClip(
+  phaseId: string,
+): MeditationAudioSource | undefined {
+  if (phaseId === 'inhale') return MEDITATION_VOICE_CLIPS.inhale;
+  if (phaseId === 'hold' || phaseId === 'hold-after-inhale' || phaseId === 'hold-after-exhale') {
+    return MEDITATION_VOICE_CLIPS.hold;
+  }
+  if (phaseId === 'exhale') return MEDITATION_VOICE_CLIPS.exhale;
+  return undefined;
+}
+
+/**
+ * Dedicated non-looping voice clip player for meditation sessions.
+ *
+ * Plays each spoken guidance clip or breath cue once (loop: false).
+ * Automatically interrupts preceding clips without overlapping or stuttering.
+ * Provides `isPlayingIntro()` guard so breath cycle cues do not cut off introductory guidance.
+ */
+export class MeditationVoiceClipController {
+  private handle: MeditationAudioHandle | null = null;
+  private volume: number;
+  private muted = false;
+  private paused = false;
+  private disposed = false;
+  private introUntilMs = 0;
+  private generation = 0;
+  private readonly now: () => number;
+
+  constructor(
+    private readonly driver: MeditationAudioDriver,
+    options?: { volume?: number; muted?: boolean; now?: () => number },
+  ) {
+    this.volume = clampVolume(options?.volume ?? DEFAULT_MEDITATION_VOICE_VOLUME);
+    this.muted = options?.muted ?? false;
+    this.now = options?.now ?? Date.now;
+  }
+
+  getVolume(): number {
+    return this.volume;
+  }
+
+  setVolume(volume: number): void {
+    if (this.disposed) return;
+    this.volume = clampVolume(volume);
+    if (this.handle) safeSetVolume(this.handle, this.volume);
+  }
+
+  isMuted(): boolean {
+    return this.muted;
+  }
+
+  setMuted(muted: boolean): void {
+    if (this.disposed) return;
+    this.muted = muted;
+    if (muted) {
+      this.introUntilMs = 0;
+      this.discardHandle();
+    }
+  }
+
+  isPlayingIntro(): boolean {
+    return !this.disposed && !this.muted && this.now() < this.introUntilMs;
+  }
+
+  async playClip(
+    source: MeditationAudioSource,
+    isIntro = false,
+    durationMs?: number,
+  ): Promise<void> {
+    if (this.disposed || this.muted) return;
+
+    this.generation++;
+    this.discardHandle();
+
+    if (isIntro) {
+      const duration = durationMs ?? MEDITATION_CLIP_DURATIONS_MS[source] ?? 6000;
+      this.introUntilMs = this.now() + duration;
+    } else {
+      this.introUntilMs = 0;
+    }
+
+    const ticket = this.generation;
+    let handle: MeditationAudioHandle;
+    try {
+      handle = await this.driver.create(source, { volume: this.volume, loop: false });
+    } catch {
+      return;
+    }
+
+    if (this.disposed || ticket !== this.generation || this.muted) {
+      safeRelease(handle);
+      return;
+    }
+
+    this.handle = handle;
+    if (!this.paused) {
+      safePlay(handle);
+    }
+  }
+
+  pause(): void {
+    if (this.disposed) return;
+    this.paused = true;
+    if (this.handle) safePause(this.handle);
+  }
+
+  resume(): void {
+    if (this.disposed) return;
+    this.paused = false;
+    if (this.handle && !this.muted) {
+      safePlay(this.handle);
+    }
+  }
+
+  stop(): void {
+    if (this.disposed) return;
+    this.introUntilMs = 0;
+    this.discardHandle();
+  }
+
+  dispose(): void {
+    if (this.disposed) return;
+    this.generation++;
+    this.disposed = true;
+    this.introUntilMs = 0;
+    this.discardHandle();
+  }
+
+  private discardHandle(): void {
+    const handle = this.handle;
+    this.handle = null;
+    if (!handle) return;
+    safePause(handle);
+    safeStop(handle);
+    safeRelease(handle);
   }
 }
 
@@ -543,6 +846,34 @@ function loadExpoAudio(): ExpoAudioModule | null {
     audioModule = null;
   }
   return audioModule;
+}
+
+export function setExpoAudioForTest(module: ExpoAudioModule | null | undefined): void {
+  audioModule = module;
+}
+
+declare const Platform: { OS?: string } | undefined;
+declare const window: unknown;
+declare const document: unknown;
+
+let platformModule: { OS?: string } | null | undefined;
+
+export function isWebPlatform(): boolean {
+  if (typeof Platform !== 'undefined' && Platform?.OS === 'web') {
+    return true;
+  }
+  if (typeof window !== 'undefined' && typeof document !== 'undefined') {
+    return true;
+  }
+  if (platformModule === undefined) {
+    try {
+      // eslint-disable-next-line @typescript-eslint/no-require-imports
+      platformModule = (require('react-native') as { Platform?: { OS?: string } }).Platform ?? null;
+    } catch {
+      platformModule = null;
+    }
+  }
+  return platformModule?.OS === 'web';
 }
 
 /**
@@ -597,7 +928,10 @@ export function createExpoAudioDriver(): MeditationAudioDriver {
       } catch {
         // Released below rather than returned half-configured.
         try {
-          player.release();
+          const res = player.release() as unknown;
+          if (res && typeof (res as Promise<void>).catch === 'function') {
+            (res as Promise<void>).catch(() => {});
+          }
         } catch {
           // Intentionally swallowed.
         }
@@ -606,10 +940,24 @@ export function createExpoAudioDriver(): MeditationAudioDriver {
 
       return {
         play() {
-          player.play();
+          try {
+            const res = player.play() as unknown;
+            if (res && typeof (res as Promise<void>).catch === 'function') {
+              (res as Promise<void>).catch(() => {});
+            }
+          } catch {
+            // Intentionally swallowed.
+          }
         },
         pause() {
-          player.pause();
+          try {
+            const res = player.pause() as unknown;
+            if (res && typeof (res as Promise<void>).catch === 'function') {
+              (res as Promise<void>).catch(() => {});
+            }
+          } catch {
+            // Intentionally swallowed.
+          }
         },
         stop() {
           /*
@@ -617,19 +965,201 @@ export function createExpoAudioDriver(): MeditationAudioDriver {
            * IS for a looping bed, and the rewind is what lets "Start again"
            * begin at the top instead of resuming mid-loop.
            */
-          player.pause();
-          const seeked = player.seekTo(0);
-          if (seeked && typeof (seeked as Promise<void>).catch === 'function') {
-            (seeked as Promise<void>).catch(() => {});
+          try {
+            const res = player.pause() as unknown;
+            if (res && typeof (res as Promise<void>).catch === 'function') {
+              (res as Promise<void>).catch(() => {});
+            }
+          } catch {
+            // Intentionally swallowed.
+          }
+          try {
+            const seeked = player.seekTo(0) as unknown;
+            if (seeked && typeof (seeked as Promise<void>).catch === 'function') {
+              (seeked as Promise<void>).catch(() => {});
+            }
+          } catch {
+            // Intentionally swallowed.
           }
         },
         setVolume(next) {
-          player.volume = next;
+          try {
+            player.volume = next;
+          } catch {
+            // Intentionally swallowed.
+          }
         },
         release() {
-          player.release();
+          try {
+            // First safely pause and mute the player
+            try {
+              const res = player.pause() as unknown;
+              if (res && typeof (res as Promise<void>).catch === 'function') {
+                (res as Promise<void>).catch(() => {});
+              }
+            } catch {
+              // Intentionally swallowed.
+            }
+
+            try {
+              player.volume = 0;
+            } catch {
+              // Intentionally swallowed.
+            }
+
+            // On Expo Web, calling player.release() clears HTML5 <audio> src and calls load(),
+            // which triggers an unhandled browser AbortError. Pausing and muting is sufficient.
+            if (isWebPlatform()) {
+              return;
+            }
+
+            // On native platforms, release the native player
+            const res = player.release() as unknown;
+            if (res && typeof (res as Promise<void>).catch === 'function') {
+              (res as Promise<void>).catch(() => {});
+            }
+          } catch {
+            // Intentionally swallowed.
+          }
         },
       };
     },
   };
 }
+
+/**
+ * Checks whether a browser window error event represents a benign media abort
+ * (e.g. HTMLMediaElement MEDIA_ERR_ABORTED / DOMException AbortError from an
+ * interrupted audio resource fetch when navigating away or unmounting).
+ */
+export function isMediaAbortError(event: unknown): boolean {
+  if (!event || typeof event !== 'object') return false;
+  const evt = event as {
+    target?: unknown;
+    message?: unknown;
+    error?: unknown;
+    name?: unknown;
+  };
+
+  // 1. Check if the event target is an HTMLAudioElement / HTMLMediaElement with error?.code === 1 (MEDIA_ERR_ABORTED)
+  const target = evt.target as { error?: { code?: unknown } } | undefined;
+  if (target && typeof target === 'object' && target.error && typeof target.error === 'object') {
+    if (target.error.code === 1) {
+      return true;
+    }
+  }
+
+  // 2. Check if event itself indicates AbortError
+  const name = typeof evt.name === 'string' ? evt.name : '';
+  if (name === 'AbortError') {
+    return true;
+  }
+
+  // 3. Check event.message indicates AbortError or "fetching process for the media resource was aborted"
+  const message = typeof evt.message === 'string' ? evt.message : '';
+  if (
+    message.includes('fetching process for the media resource was aborted') ||
+    message.includes('AbortError')
+  ) {
+    return true;
+  }
+
+  // 4. Check event.error?.name or event.error?.message
+  if (evt.error && typeof evt.error === 'object') {
+    const err = evt.error as { name?: unknown; message?: unknown };
+    const errName = typeof err.name === 'string' ? err.name : '';
+    const errMessage = typeof err.message === 'string' ? err.message : '';
+    if (
+      errName === 'AbortError' ||
+      errMessage.includes('fetching process for the media resource was aborted') ||
+      errMessage.includes('AbortError')
+    ) {
+      return true;
+    }
+  }
+
+  return false;
+}
+
+/**
+ * Checks whether an unhandled promise rejection represents a benign media abort.
+ */
+export function isMediaAbortRejection(eventOrReason: unknown): boolean {
+  if (!eventOrReason) return false;
+  const reason = (
+    typeof eventOrReason === 'object' && 'reason' in (eventOrReason as Record<string, unknown>)
+      ? (eventOrReason as { reason: unknown }).reason
+      : eventOrReason
+  ) as { name?: unknown; message?: unknown } | undefined;
+
+  if (!reason) return false;
+
+  const name = typeof reason === 'object' && reason !== null && typeof reason.name === 'string' ? reason.name : '';
+  if (name === 'AbortError') {
+    return true;
+  }
+
+  const msg =
+    typeof reason === 'object' && reason !== null && typeof reason.message === 'string'
+      ? reason.message
+      : String(reason);
+
+  return msg.includes('fetching process for the media resource was aborted');
+}
+
+/**
+ * Convenience predicate that recognizes any benign browser media abort event
+ * or unhandled rejection.
+ */
+export function isMediaAbortEvent(eventOrReason: unknown): boolean {
+  return isMediaAbortError(eventOrReason) || isMediaAbortRejection(eventOrReason);
+}
+
+/**
+ * Safely pauses, stops, and releases an audio player, controller, or handle,
+ * guarding against DOMException AbortErrors and unhandled promise rejections on web.
+ */
+export function safeDisposeAudio(
+  target:
+    | { dispose: () => void }
+    | { release: () => void; pause?: () => unknown; stop?: () => unknown }
+    | null
+    | undefined,
+): void {
+  if (!target) return;
+  try {
+    if ('dispose' in target && typeof target.dispose === 'function') {
+      target.dispose();
+      return;
+    }
+    if ('pause' in target && typeof target.pause === 'function') {
+      try {
+        const res = target.pause() as unknown;
+        if (res && typeof (res as Promise<void>).catch === 'function') {
+          (res as Promise<void>).catch(() => {});
+        }
+      } catch {
+        // Intentionally swallowed
+      }
+    }
+    if ('stop' in target && typeof target.stop === 'function') {
+      try {
+        const res = target.stop() as unknown;
+        if (res && typeof (res as Promise<void>).catch === 'function') {
+          (res as Promise<void>).catch(() => {});
+        }
+      } catch {
+        // Intentionally swallowed
+      }
+    }
+    if ('release' in target && typeof target.release === 'function') {
+      const res = target.release() as unknown;
+      if (res && typeof (res as Promise<void>).catch === 'function') {
+        (res as Promise<void>).catch(() => {});
+      }
+    }
+  } catch {
+    // Intentionally swallowed
+  }
+}
+

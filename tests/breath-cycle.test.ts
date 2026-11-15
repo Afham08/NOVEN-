@@ -2,6 +2,8 @@ import { check, suite } from './harness';
 
 import {
   BOX_BREATHING,
+  GENTLE_BREATHING,
+  EASY_RHYTHM,
   BREATHING_TECHNIQUES,
   BreathCycleEngine,
   getBreathingTechnique,
@@ -12,6 +14,13 @@ import {
 } from '../src/activities/breath-cycle';
 import { GuidedSession } from '../src/activities/guided-session';
 import { meditationSessions } from '../src/activities/meditation';
+import {
+  CALM_VOICE_PITCH,
+  CALM_VOICE_RATE,
+  createCalmSpeechSink,
+  STANDARD_VOICE_PITCH,
+  STANDARD_VOICE_RATE,
+} from '../src/exercise/voice-feedback';
 import {
   createSessionRecord,
   parseSessionRecord,
@@ -160,9 +169,57 @@ suite('breath cycle: the Box Breathing definition', () => {
   ), BOX.phases.map((p) => p.id));
 });
 
+suite('breath cycle: the Gentle Breathing definition', () => {
+  const GENTLE = GENTLE_BREATHING;
+  check('gentle breathing has exactly two phases', GENTLE.phases.length === 2, GENTLE.phases.length);
+  check(
+    'in the order inhale, exhale',
+    GENTLE.phases.map((p) => p.id).join(',') === 'inhale,exhale',
+    GENTLE.phases.map((p) => p.id),
+  );
+  check('inhale lasts four seconds', GENTLE.phases[0]?.seconds === 4, GENTLE.phases[0]?.seconds);
+  check('exhale lasts six seconds', GENTLE.phases[1]?.seconds === 6, GENTLE.phases[1]?.seconds);
+  check('one cycle is ten seconds', atElapsed(0, GENTLE).cycleMs === 10_000, atElapsed(0, GENTLE).cycleMs);
+  check('a cycle is the sum of its phases', atElapsed(0, GENTLE).cycleMs === GENTLE.phases.reduce((t, p) => t + p.seconds, 0) * 1000);
+  check('every phase has a single-word label', GENTLE.phases.every((p) => ['Inhale', 'Exhale'].includes(p.label)));
+
+  // Transitions
+  check('at zero it is the inhale', isPhase(atElapsed(0, GENTLE), 'inhale'));
+  check('at four seconds it transitions to exhale', isPhase(atElapsed(4_000, GENTLE), 'exhale'));
+  check('at ten seconds it is the inhale of the next cycle', isPhase(atElapsed(10_000, GENTLE), 'inhale'));
+  check('one cycle banked at 10s', atElapsed(10_000, GENTLE).completedCycles === 1, atElapsed(10_000, GENTLE).completedCycles);
+});
+
+suite('breath cycle: the Easy Rhythm definition', () => {
+  const EASY = EASY_RHYTHM;
+  check('easy rhythm has exactly three phases', EASY.phases.length === 3, EASY.phases.length);
+  check(
+    'in the order inhale, hold, exhale',
+    EASY.phases.map((p) => p.id).join(',') === 'inhale,hold-after-inhale,exhale',
+    EASY.phases.map((p) => p.id),
+  );
+  check('inhale lasts three seconds', EASY.phases[0]?.seconds === 3, EASY.phases[0]?.seconds);
+  check('hold lasts one second', EASY.phases[1]?.seconds === 1, EASY.phases[1]?.seconds);
+  check('exhale lasts four seconds', EASY.phases[2]?.seconds === 4, EASY.phases[2]?.seconds);
+  check('one cycle is eight seconds', atElapsed(0, EASY).cycleMs === 8_000, atElapsed(0, EASY).cycleMs);
+  check('a cycle is the sum of its phases', atElapsed(0, EASY).cycleMs === EASY.phases.reduce((t, p) => t + p.seconds, 0) * 1000);
+  check('every phase has a single-word label', EASY.phases.every((p) => ['Inhale', 'Hold', 'Exhale'].includes(p.label)));
+
+  // Transitions
+  check('at zero it is the inhale', isPhase(atElapsed(0, EASY), 'inhale'));
+  check('at three seconds it transitions to hold', isPhase(atElapsed(3_000, EASY), 'hold-after-inhale'));
+  check('at four seconds it transitions to exhale', isPhase(atElapsed(4_000, EASY), 'exhale'));
+  check('at eight seconds it is the inhale of the next cycle', isPhase(atElapsed(8_000, EASY), 'inhale'));
+  check('one cycle banked at 8s', atElapsed(8_000, EASY).completedCycles === 1, atElapsed(8_000, EASY).completedCycles);
+});
+
 suite('breath cycle: the technique registry', () => {
   check('box breathing is registered', isBreathingTechniqueId('box-breathing'));
+  check('gentle breathing is registered', isBreathingTechniqueId('gentle-breathing'));
+  check('easy rhythm is registered', isBreathingTechniqueId('easy-rhythm'));
   check('it resolves by id', getBreathingTechnique('box-breathing')?.id === 'box-breathing');
+  check('gentle breathing resolves by id', getBreathingTechnique('gentle-breathing')?.id === 'gentle-breathing');
+  check('easy rhythm resolves by id', getBreathingTechnique('easy-rhythm')?.id === 'easy-rhythm');
   check('an unknown technique resolves to nothing', getBreathingTechnique('coherent') === undefined);
   check('a missing one resolves to nothing', getBreathingTechnique(undefined) === undefined);
   check('a route-style array resolves on its first element', getBreathingTechnique(['box-breathing', 'x'])?.id === 'box-breathing');
@@ -172,11 +229,9 @@ suite('breath cycle: the technique registry', () => {
   check('a non-string is not a technique id', !isBreathingTechniqueId(7));
 
   /*
-   * One technique only. A second one would be a feature, and this phase is the
-   * engine plus box breathing; the architecture has to allow the next one without
-   * having any of them already.
+   * Three techniques are registered: box-breathing, gentle-breathing, easy-rhythm.
    */
-  check('box breathing is the only technique implemented', Object.keys(BREATHING_TECHNIQUES).length === 1, Object.keys(BREATHING_TECHNIQUES));
+  check('three techniques implemented', Object.keys(BREATHING_TECHNIQUES).length === 3, Object.keys(BREATHING_TECHNIQUES));
 });
 
 suite('breath cycle: initial state', () => {
@@ -797,8 +852,8 @@ suite('breath cycle: what the breathing guide is allowed to claim', () => {
    * three permitted ones, and nothing resembling a verdict on the person.
    */
   const labels = new Set(BOX.phases.map((p) => p.label));
-  check('the only words the guide can say are the phase names', [...labels].every((l) => ['Inhale', 'Hold', 'Exhale'].includes(l)), [...labels]);
-  check('no phase claims anything about the person', [...labels].every((l) => !/good|great|well done|correct|perfect|detected|keep going/i.test(l)), [...labels]);
+  check('the only words the guide can say are the phase names', Array.from(labels).every((l) => ['Inhale', 'Hold', 'Exhale'].includes(l)), Array.from(labels));
+  check('no phase claims anything about the person', Array.from(labels).every((l) => !/good|great|well done|correct|perfect|detected|keep going/i.test(l)), Array.from(labels));
 
   /*
    * The routine's own wording has to survive the same test, because it is what the
@@ -976,42 +1031,95 @@ suite('meditation: the breathing routine uses the guide', () => {
 
 suite('meditation: the other sessions are untouched', () => {
   /*
-   * One session gained a paced stage. Nothing else may have changed: the other two
-   * must keep their ids, their stages and their lengths, because a person who has
-   * done them before is entitled to find them the same.
+   * The meditation catalogue contains five routines: two classic practices,
+   * two seated elder-friendly breathing meditations, and an open-eyes sound awareness session.
    */
   const ids = meditationSessions.map((a) => a.id);
-  check('there are still three meditation sessions', meditationSessions.length === 3, ids);
+  check('there are five meditation sessions', meditationSessions.length === 5, ids);
   check('one minute of calm is still there', ids.includes('one-minute-calm'), ids);
-  check('the ten minute body scan is still there', ids.includes('ten-minute-body-scan'), ids);
   check('and the five minute breathing session', ids.includes('five-minute-breathing'), ids);
 
   const calm = meditationSessions.find((a) => a.id === 'one-minute-calm');
-  const scan = meditationSessions.find((a) => a.id === 'ten-minute-body-scan');
   check('one minute of calm is still sixty seconds', calm?.durationSeconds === 60, calm?.durationSeconds);
   check('and still has its three stages', calm?.steps.length === 3, calm?.steps.length);
-  check('the body scan is still ten minutes', scan?.durationSeconds === 600, scan?.durationSeconds);
-  check('and still has its five stages', scan?.steps.length === 5, scan?.steps.length);
 
   /*
-   * Neither of them gained a paced stage. A breathing guide in the body scan would
-   * be a different session from the one the catalogue describes.
+   * The unpaced sessions pace no breath.
    */
-  for (const id of ['one-minute-calm', 'ten-minute-body-scan']) {
+  for (const id of [
+    'one-minute-calm',
+    'open-eyes-sound-awareness',
+  ]) {
     const activity = meditationSessions.find((a) => a.id === id);
     check(`${id} paces no breath`, activity?.steps.every((s) => s.breathingTechniqueId === undefined) === true);
   }
 
   /*
-   * The camera stages are unchanged, which is the other half of keeping the posture
-   * tracker honest: it still runs where it did and nowhere else.
+   * Check the seated meditation routines.
+   */
+  check('seated gentle breathing exists', ids.includes('seated-gentle-breathing'));
+  check('seated peaceful mind exists', ids.includes('seated-peaceful-mind'));
+
+  const gentleSess = meditationSessions.find((a) => a.id === 'seated-gentle-breathing');
+  const peaceful = meditationSessions.find((a) => a.id === 'seated-peaceful-mind');
+
+  check('seated gentle breathing is 120 seconds', gentleSess?.durationSeconds === 120, gentleSess?.durationSeconds);
+  check('seated gentle breathing has 3 stages', gentleSess?.steps.length === 3, gentleSess?.steps.length);
+  check('seated gentle breathing step 2 uses gentle-breathing', gentleSess?.steps[1]?.breathingTechniqueId === 'gentle-breathing');
+  check('seated gentle breathing uses stages as progressNoun', gentleSess?.progressNoun === 'stages');
+  check('seated gentle breathing has ambientAudio', gentleSess?.ambientAudio !== undefined);
+
+  check('seated peaceful mind is 300 seconds', peaceful?.durationSeconds === 300, peaceful?.durationSeconds);
+  check('seated peaceful mind has 4 stages', peaceful?.steps.length === 4, peaceful?.steps.length);
+  check('seated peaceful mind step 2 uses easy-rhythm', peaceful?.steps[1]?.breathingTechniqueId === 'easy-rhythm');
+  check('seated peaceful mind uses stages as progressNoun', peaceful?.progressNoun === 'stages');
+  check('seated peaceful mind has ambientAudio', peaceful?.ambientAudio !== undefined);
+
+  /*
+   * Check the open-eyes listening routine.
+   */
+  check('open-eyes sound awareness exists', ids.includes('open-eyes-sound-awareness'));
+
+  const openEyes = meditationSessions.find((a) => a.id === 'open-eyes-sound-awareness');
+
+  check('open-eyes sound awareness is 180 seconds', openEyes?.durationSeconds === 180, openEyes?.durationSeconds);
+  check('open-eyes sound awareness has 4 stages', openEyes?.steps.length === 4, openEyes?.steps.length);
+  check('open-eyes sound awareness paces no breath', openEyes?.steps.every((s) => s.breathingTechniqueId === undefined) === true);
+  check('open-eyes sound awareness uses stages as progressNoun', openEyes?.progressNoun === 'stages');
+  check('open-eyes sound awareness has ambientAudio', openEyes?.ambientAudio !== undefined);
+  check('open-eyes sound awareness has no camera stages', openEyes?.steps.every((s) => s.cameraConfigId === undefined) === true);
+
+  /*
+   * The camera stages are unchanged in posture config: it still runs where it did
+   * and nowhere else.
    */
   const cameraStages = meditationSessions.flatMap((a) =>
     a.steps.filter((s) => s.cameraConfigId !== undefined).map((s) => s.cameraConfigId),
   );
   check('every camera stage is still the posture config', cameraStages.every((id) => id === 'meditation-posture'), cameraStages);
-  check('one per session, still', cameraStages.length === 3, cameraStages.length);
+  check('four camera stages total', cameraStages.length === 4, cameraStages.length);
   check('and none of them is a breathing stage', meditationSessions.every((a) => a.steps.every((s) => !(s.cameraConfigId !== undefined && s.breathingTechniqueId !== undefined))));
+});
+
+suite('meditation: calming voice parameters for instructor speech', () => {
+  check(
+    'calming rate is slower than standard (around 0.80-0.90)',
+    CALM_VOICE_RATE >= 0.80 && CALM_VOICE_RATE <= 0.90,
+    CALM_VOICE_RATE,
+  );
+  check(
+    'calming pitch is higher/softer than standard (around 1.08-1.12)',
+    CALM_VOICE_PITCH >= 1.08 && CALM_VOICE_PITCH <= 1.12,
+    CALM_VOICE_PITCH,
+  );
+  check('calm rate is slower than standard rate', CALM_VOICE_RATE < STANDARD_VOICE_RATE);
+  check('calm pitch is higher than standard pitch', CALM_VOICE_PITCH > STANDARD_VOICE_PITCH);
+
+  const calmSink = createCalmSpeechSink();
+  check(
+    'createCalmSpeechSink returns a valid speech sink',
+    typeof calmSink.speak === 'function' && typeof calmSink.stop === 'function',
+  );
 });
 
 suite('the guided screen drives the guide', () => {

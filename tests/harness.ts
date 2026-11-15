@@ -11,6 +11,57 @@
  * failure attributed to the suite that produced it.
  */
 
+// In Node test runner, hook module resolution for static audio assets
+if (typeof require !== 'undefined') {
+  try {
+    // eslint-disable-next-line @typescript-eslint/no-require-imports
+    const Module = require('module') as {
+      _resolveFilename?: (request: string, ...args: unknown[]) => string;
+      __audioHooked?: boolean;
+    };
+    if (Module && Module._resolveFilename && !Module.__audioHooked) {
+      Module.__audioHooked = true;
+      const origResolve = Module._resolveFilename;
+      Module._resolveFilename = function (request: string, ...args: unknown[]) {
+        if (
+          typeof request === 'string' &&
+          (request.endsWith('.ogg') || request.endsWith('.mp3'))
+        ) {
+          return request;
+        }
+        return origResolve.call(this, request, ...args);
+      };
+      const reqWithExt = require as {
+        extensions?: Record<string, (module: { exports: unknown }, filename: string) => void>;
+      };
+      if (reqWithExt.extensions) {
+        const assetMap = new Map<string, number>();
+        let nextAssetId = 1;
+        const getAssetId = (filename: string) => {
+          let id = assetMap.get(filename);
+          if (!id) {
+            id = nextAssetId++;
+            assetMap.set(filename, id);
+          }
+          return id;
+        };
+        if (!reqWithExt.extensions['.ogg']) {
+          reqWithExt.extensions['.ogg'] = (module, filename) => {
+            module.exports = getAssetId(filename || 'ogg');
+          };
+        }
+        if (!reqWithExt.extensions['.mp3']) {
+          reqWithExt.extensions['.mp3'] = (module, filename) => {
+            module.exports = getAssetId(filename || 'mp3');
+          };
+        }
+      }
+    }
+  } catch {
+    // Intentionally swallowed
+  }
+}
+
 type Failure = { suite: string; name: string; detail: unknown };
 
 const failures: Failure[] = [];

@@ -123,6 +123,33 @@ export const BOX_BREATHING: BreathingTechnique = {
 };
 
 /**
+ * Gentle breathing: gentle 4-second inhale, unhurried 6-second exhale with no breath holding.
+ * Ideal for seniors seeking a calming, strain-free respiratory rhythm.
+ */
+export const GENTLE_BREATHING: BreathingTechnique = {
+  id: 'gentle-breathing',
+  name: 'Gentle Breathing',
+  phases: [
+    { id: 'inhale', label: 'Inhale', seconds: 4 },
+    { id: 'exhale', label: 'Exhale', seconds: 6 },
+  ],
+};
+
+/**
+ * Easy rhythm: 3-second inhale, soft 1-second pause at top, 4-second relaxed exhale.
+ * A light, accessible pacing for older adults.
+ */
+export const EASY_RHYTHM: BreathingTechnique = {
+  id: 'easy-rhythm',
+  name: 'Easy Rhythm',
+  phases: [
+    { id: 'inhale', label: 'Inhale', seconds: 3 },
+    { id: 'hold-after-inhale', label: 'Hold', seconds: 1 },
+    { id: 'exhale', label: 'Exhale', seconds: 4 },
+  ],
+};
+
+/**
  * The id of a technique this build implements.
  *
  * Written out rather than derived from the registry's keys, so that it stays a
@@ -132,11 +159,13 @@ export const BOX_BREATHING: BreathingTechnique = {
  *
  * Adding a technique means adding its id here and its entry below, and nothing else.
  */
-export type BreathingTechniqueId = 'box-breathing';
+export type BreathingTechniqueId = 'box-breathing' | 'gentle-breathing' | 'easy-rhythm';
 
 /** Every technique this build implements, keyed by id. */
 export const BREATHING_TECHNIQUES: Readonly<Record<BreathingTechniqueId, BreathingTechnique>> = {
   'box-breathing': BOX_BREATHING,
+  'gentle-breathing': GENTLE_BREATHING,
+  'easy-rhythm': EASY_RHYTHM,
 };
 
 /**

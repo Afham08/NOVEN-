@@ -8,6 +8,7 @@ import {
 } from '../../../modules/pose-tracker';
 
 import { describeLength, describeStepPosition } from '@/activities/activity-format';
+import { BreathingOrb } from '@/components/guided/breathing-orb';
 import {
   BreathCycleEngine,
   getBreathingTechnique,
@@ -25,7 +26,10 @@ import {
 import {
   ambientAudioFor,
   createExpoAudioDriver,
+  meditationBreathPhaseVoiceClip,
+  meditationStepVoiceClip,
   MeditationAudioController,
+  MeditationVoiceClipController,
   type MeditationAudioPhase,
 } from '@/activities/meditation-audio';
 import type { GuidedActivity } from '@/activities/types';
@@ -34,7 +38,7 @@ import { YogaHoldTracker, type YogaHoldSnapshot } from '@/activities/yoga-hold';
 import type { SaveStatus } from '@/activities/result-params';
 import { buildSessionMetrics } from '@/exercise/metrics';
 import { createSessionId, createSessionRecord } from '@/exercise/session-store';
-import { createExpoSpeechSink, VoiceFeedbackController } from '@/exercise/voice-feedback';
+import { createExpoSpeechSink, createSilentSpeechSink, VoiceFeedbackController } from '@/exercise/voice-feedback';
 import { sessionStore } from '@/exercise/session-storage';
 import { SessionEngine } from '@/exercise/session-engine';
 import { getGuidedPoseConfig } from '@/exercise/pose-configs';
@@ -134,6 +138,13 @@ export function GuidedActivityScreen({ activity }: GuidedActivityScreenProps) {
 
   const running = snapshot.phase === 'running';
 
+  const isMeditation = activity.kind === 'meditation';
+
+  /**
+   * Voice guidance toggle. Defaults to true.
+   */
+  const [voiceEnabled, setVoiceEnabled] = useState(true);
+
   /**
    * Voice guidance is the SAME controller the exercise session uses — one speech
    * pipeline for the whole app, injected with the same expo-speech sink, so there
@@ -152,13 +163,36 @@ export function GuidedActivityScreen({ activity }: GuidedActivityScreenProps) {
   const voiceRef = useRef<VoiceFeedbackController | null>(null);
 
   useEffect(() => {
-    const voice = new VoiceFeedbackController(createExpoSpeechSink());
+    const voice = new VoiceFeedbackController(
+      isMeditation ? createSilentSpeechSink() : createExpoSpeechSink(),
+    );
     voiceRef.current = voice;
     return () => {
       voice.dispose();
       if (voiceRef.current === voice) voiceRef.current = null;
     };
-  }, []);
+  }, [isMeditation]);
+
+  /**
+   * Dedicated non-looping voice clip player for meditation sessions.
+   * Plays custom ElevenLabs female voice clips in chronological order
+   * while expo-speech TTS is silenced.
+   */
+  const voiceClipsRef = useRef<MeditationVoiceClipController | null>(null);
+
+  useEffect(() => {
+    if (!isMeditation) return;
+    const voiceClips = new MeditationVoiceClipController(createExpoAudioDriver());
+    voiceClipsRef.current = voiceClips;
+    return () => {
+      try {
+        voiceClips.dispose();
+      } catch {
+        // Intentionally swallowed on unmount
+      }
+      if (voiceClipsRef.current === voiceClips) voiceClipsRef.current = null;
+    };
+  }, [isMeditation]);
 
   /**
    * The optional ambient bed, resolved through `ambientAudioFor` so that only a
@@ -244,7 +278,11 @@ export function GuidedActivityScreen({ activity }: GuidedActivityScreenProps) {
       // Unsubscribed BEFORE disposing, so a late load cannot call setState on a
       // screen that has already navigated away.
       unsubscribe();
-      audio.dispose();
+      try {
+        audio.dispose();
+      } catch {
+        // Intentionally swallowed on unmount
+      }
       if (audioRef.current === audio) audioRef.current = null;
     };
   }, [ambientSource, ambientVolume]);
@@ -313,8 +351,27 @@ export function GuidedActivityScreen({ activity }: GuidedActivityScreenProps) {
   /** Whether we're currently on a camera-tracked step of either kind. */
   const isCameraStep = currentStepConfig !== undefined || isPoseStep;
 
-  /** Whether the current activity is meditation (for camera HUD customization). */
-  const isMeditation = activity.kind === 'meditation';
+  /**
+   * Posture check toggle for meditation sessions.
+   * Defaults to false for meditation so the camera never turns on unexpectedly
+   * for elderly users. Remains true for yoga/exercise camera steps.
+   */
+  const [postureCheckEnabled, setPostureCheckEnabled] = useState(!isMeditation);
+
+  const toggleVoice = useCallback(() => {
+    setVoiceEnabled((prev) => {
+      const next = !prev;
+      if (!next) {
+        voiceRef.current?.stop();
+        voiceRef.current?.reset();
+        voiceClipsRef.current?.stop();
+        voiceClipsRef.current?.setMuted(true);
+      } else {
+        voiceClipsRef.current?.setMuted(false);
+      }
+      return next;
+    });
+  }, [setVoiceEnabled]);
 
   /**
    * Whether the live camera preview should be mounted right now.
@@ -329,6 +386,7 @@ export function GuidedActivityScreen({ activity }: GuidedActivityScreenProps) {
   const showCameraPreview =
     isCameraStep &&
     running &&
+    (!isMeditation || postureCheckEnabled) &&
     hasCameraPermission === true &&
     (isMeditation || isPoseStep || hasCameraEngine);
 
@@ -531,7 +589,9 @@ export function GuidedActivityScreen({ activity }: GuidedActivityScreenProps) {
     // Same transition wording as the exercise session: one short sentence, then
     // the controller's state machine decides everything else.
     voiceRef.current?.reset();
-    voiceRef.current?.announceStart();
+    if (voiceEnabled) {
+      voiceRef.current?.announceStart();
+    }
     /*
      * Ambient sound follows the session and is told about it here, once, by the
      * same callback that starts the clock. If the person switched it off, it stays
@@ -539,7 +599,7 @@ export function GuidedActivityScreen({ activity }: GuidedActivityScreenProps) {
      * instead. Either way the bed can never start before, or outlast, the session.
      */
     if (ambientOnRef.current) audioRef.current?.play();
-  }, [session]);
+  }, [session, voiceEnabled]);
 
   const pause = useCallback(() => {
     session.pause();
@@ -553,19 +613,21 @@ export function GuidedActivityScreen({ activity }: GuidedActivityScreenProps) {
     setSnapshot(session.snapshot());
     // The controller suspends itself while paused; nothing further is spoken
     // until Resume, exactly matching the exercise session's policy.
-    voiceRef.current?.announcePause();
+    if (voiceEnabled) voiceRef.current?.announcePause();
+    voiceClipsRef.current?.pause();
     // Silence for the same reason, and with the same guarantee: a bed that is
     // still loading is recorded as paused rather than left to arrive playing.
     audioRef.current?.pause();
-  }, [session]);
+  }, [session, voiceEnabled]);
 
   const resume = useCallback(() => {
     session.resume();
     poseTrackerRef.current?.resume();
     setSnapshot(session.snapshot());
-    voiceRef.current?.announceResume();
+    if (voiceEnabled) voiceRef.current?.announceResume();
+    voiceClipsRef.current?.resume();
     if (ambientOnRef.current) audioRef.current?.play();
-  }, [session]);
+  }, [session, voiceEnabled]);
 
   /**
    * Whether this activity asks for the camera at all.
@@ -623,9 +685,10 @@ export function GuidedActivityScreen({ activity }: GuidedActivityScreenProps) {
 
   useEffect(() => {
     if (!usesCamera) return;
+    if (isMeditation && !postureCheckEnabled) return;
     const timer = setTimeout(requestCameraPermission, 0);
     return () => clearTimeout(timer);
-  }, [usesCamera, requestCameraPermission]);
+  }, [usesCamera, requestCameraPermission, isMeditation, postureCheckEnabled]);
 
   /**
    * Update camera engine when the camera-tracked step changes.
@@ -743,7 +806,9 @@ export function GuidedActivityScreen({ activity }: GuidedActivityScreenProps) {
          */
         if (hold.justCompleted) {
           announcedCorrectionRef.current = null;
-          voiceRef.current?.consider('good', `${currentPoseRule?.name ?? 'Pose'} held. Well done.`);
+          if (voiceEnabled) {
+            voiceRef.current?.consider('good', `${currentPoseRule?.name ?? 'Pose'} held. Well done.`);
+          }
           /*
            * The hold being met is what finishes this step, so this frame is the one
            * that tells the session so. `completeStep` reports whether THIS call was
@@ -767,7 +832,9 @@ export function GuidedActivityScreen({ activity }: GuidedActivityScreenProps) {
            */
           if (announcedCorrectionRef.current !== hold.correction) {
             announcedCorrectionRef.current = hold.correction;
-            voiceRef.current?.consider('positioning', hold.correction);
+            if (voiceEnabled) {
+              voiceRef.current?.consider('positioning', hold.correction);
+            }
           }
         } else {
           /* Back in the pose, or out of frame: re-arm, so a later break is heard. */
@@ -794,9 +861,11 @@ export function GuidedActivityScreen({ activity }: GuidedActivityScreenProps) {
       // The voice layer reads the engine's own decision — the same object the
       // HUD renders — so the speaker can never disagree with the screen. Its
       // state machine speaks only on genuine changes, never per frame.
-      voiceRef.current?.onFrame(result);
+      if (voiceEnabled) {
+        voiceRef.current?.onFrame(result);
+      }
     },
-    [snapshot.phase, snapshot.stepIndex, snapshot.currentStep, isMeditation, currentPoseRule, session],
+    [snapshot.phase, snapshot.stepIndex, snapshot.currentStep, isMeditation, currentPoseRule, session, voiceEnabled],
   );
 
   /**
@@ -855,7 +924,21 @@ export function GuidedActivityScreen({ activity }: GuidedActivityScreenProps) {
        * await between them, so they read the same value. A routine that measured
        * nothing still passes a true 0.
        */
-      voiceRef.current?.announceCompletion(measuredReps(repTallyRef.current));
+      if (voiceEnabled) {
+        if (isMeditation) {
+          /*
+           * For meditation sessions, stop any in-flight guidance/breathing clip.
+           * The congratulatory complete.mp3 clip is handed off to ActivityResultScreen
+           * so it plays smoothly to completion during the summary display rather than
+           * getting cut off when this screen unmounts.
+           */
+          voiceClipsRef.current?.stop();
+        } else {
+          voiceRef.current?.announceCompletion(measuredReps(repTallyRef.current));
+        }
+      } else {
+        voiceClipsRef.current?.stop();
+      }
 
       /*
        * The bed stops with the session, before the save is awaited. This is
@@ -933,12 +1016,13 @@ export function GuidedActivityScreen({ activity }: GuidedActivityScreenProps) {
               seconds: String(final.elapsedSeconds),
               how,
               saved: saveStatus,
+              voice: voiceEnabled ? 'on' : 'muted',
             },
           });
         },
       });
     },
-    [activity, ownership, router, session],
+    [activity, isMeditation, ownership, router, session, voiceEnabled],
   );
 
   /**
@@ -1005,8 +1089,15 @@ export function GuidedActivityScreen({ activity }: GuidedActivityScreenProps) {
     // `consider` with an override text is the one-shot announcement path: it is
     // exempt from the state-change rules and always speaks. Calm by design —
     // one sentence per step, never repeated while the step lasts.
-    voiceRef.current?.consider('ready', step.guidance);
-  }, [running, snapshot.currentStep, snapshot.stepIndex]);
+    if (voiceEnabled) {
+      if (isMeditation) {
+        const clip = meditationStepVoiceClip(activity.id, snapshot.stepIndex, step.title);
+        if (clip) void voiceClipsRef.current?.playClip(clip, true);
+      } else {
+        voiceRef.current?.consider('ready', step.guidance);
+      }
+    }
+  }, [running, snapshot.currentStep, snapshot.stepIndex, voiceEnabled, isMeditation, activity.id]);
 
   /**
    * The breathing voice guide: one word when the phase changes, and nothing else.
@@ -1042,8 +1133,17 @@ export function GuidedActivityScreen({ activity }: GuidedActivityScreenProps) {
      * way of knowing whether it was followed, so it cannot say "good" or "keep
      * going" or anything else that would imply it had checked.
      */
-    voiceRef.current?.consider('ready', breath?.label ?? '');
-  }, [running, breath]);
+    if (voiceEnabled) {
+      if (isMeditation) {
+        if (!voiceClipsRef.current?.isPlayingIntro()) {
+          const clip = meditationBreathPhaseVoiceClip(phaseId);
+          if (clip) void voiceClipsRef.current?.playClip(clip, false);
+        }
+      } else {
+        voiceRef.current?.consider('ready', breath?.label ?? '');
+      }
+    }
+  }, [running, breath, voiceEnabled, isMeditation]);
 
   /**
    * Starting again after a finished session has to re-arm the once-only guard,
@@ -1064,6 +1164,7 @@ export function GuidedActivityScreen({ activity }: GuidedActivityScreenProps) {
     autoSavedRef.current = false;
     setSaving(false);
     announcedStepRef.current = null;
+    voiceClipsRef.current?.stop();
     start();
   }, [ownership, start]);
   const phaseLabel =
@@ -1202,8 +1303,16 @@ export function GuidedActivityScreen({ activity }: GuidedActivityScreenProps) {
         </View>
       )}
 
-      {isCameraStep && running && !hasCameraPermission && (
+      {isCameraStep && running && !hasCameraPermission && (!isMeditation || postureCheckEnabled) && (
         <CameraPlaceholder optional={isMeditation} />
+      )}
+
+      {isMeditation && isCameraStep && running && !postureCheckEnabled && (
+        <Card variant="tint" style={styles.optionalNoteCard}>
+          <Text style={[styles.optionalNoteText, { color: theme.textSecondary }]}>
+            Camera posture check is off. Sit comfortably and focus on your practice, or turn it on anytime below.
+          </Text>
+        </Card>
       )}
 
       <StatusChip label={phaseLabel} tone={phaseTone} />
@@ -1252,6 +1361,13 @@ export function GuidedActivityScreen({ activity }: GuidedActivityScreenProps) {
           <Text style={[styles.breathLabel, { color: theme.textSecondary }]}>
             {breath.techniqueName.toUpperCase()}
           </Text>
+          <BreathingOrb
+            phaseId={breath.phaseId}
+            phaseProgress={breath.phaseProgress}
+            label={breath.label}
+            remainingSeconds={breath.phaseRemainingSeconds}
+            paused={snapshot.phase === 'paused'}
+          />
           {/*
             The phase and its remaining seconds, the largest thing on the screen
             after the session clock, because during a breath the phase is what the
@@ -1335,6 +1451,28 @@ export function GuidedActivityScreen({ activity }: GuidedActivityScreenProps) {
         <Text style={[styles.safety, { color: theme.text }]}>{activity.safetyNote}</Text>
       </Card>
 
+      {/* Session accessibility toggles: Voice & optional camera posture check */}
+      <View style={styles.togglesRow}>
+        {isMeditation && (
+          <Button
+            variant={postureCheckEnabled ? 'primary' : 'outline'}
+            size="medium"
+            title={postureCheckEnabled ? 'Posture Check: On' : 'Posture Check: Off'}
+            onPress={() => setPostureCheckEnabled((prev) => !prev)}
+            fullWidth={false}
+            style={styles.toggleButton}
+          />
+        )}
+        <Button
+          variant={voiceEnabled ? 'primary' : 'outline'}
+          size="medium"
+          title={voiceEnabled ? 'Voice: On' : 'Voice: Muted'}
+          onPress={toggleVoice}
+          fullWidth={false}
+          style={styles.toggleButton}
+        />
+      </View>
+
       {notStarted || snapshot.finished ? (
         /*
          * A finished session has already been recorded and its result pushed, so
@@ -1409,16 +1547,20 @@ export function GuidedActivityScreen({ activity }: GuidedActivityScreenProps) {
       ) : null}
 
       {/*
-        Restarting a session that is under way discards real time, so it is a link
-        rather than a button and it is not offered before anything has happened.
+        Restarting a session that is under way discards real time, so it is a clear
+        bordered button with accessible touch target.
       */}
       {notStarted || snapshot.finished ? null : (
         <Pressable
           accessibilityRole="button"
           accessibilityLabel="Start the routine again"
           onPress={startFresh}
-          style={({ pressed }) => [styles.reset, pressed && styles.resetPressed]}>
-          <Text style={[styles.resetText, { color: theme.accentSecondary }]}>Start again</Text>
+          style={({ pressed }) => [
+            styles.reset,
+            { borderColor: theme.border, backgroundColor: theme.backgroundElement },
+            pressed && styles.resetPressed,
+          ]}>
+          <Text style={[styles.resetText, { color: theme.text }]}>Start again</Text>
         </Pressable>
       )}
     </Screen>
@@ -1684,6 +1826,25 @@ const styles = StyleSheet.create({
   },
   control: {
     flex: 1,
+    minHeight: 52,
+  },
+  togglesRow: {
+    flexDirection: 'row',
+    gap: Spacing.three,
+    marginTop: Spacing.two,
+  },
+  toggleButton: {
+    flex: 1,
+    minHeight: 52,
+  },
+  optionalNoteCard: {
+    padding: Spacing.three,
+  },
+  optionalNoteText: {
+    ...Type.body,
+    fontSize: 16,
+    lineHeight: 24,
+    textAlign: 'center',
   },
   ambientRow: {
     marginTop: Spacing.three,
@@ -1691,13 +1852,20 @@ const styles = StyleSheet.create({
   },
   ambientControl: {
     alignSelf: 'flex-start',
+    minHeight: 52,
+    justifyContent: 'center',
   },
   ambientNote: {
     ...Type.label,
   },
   reset: {
+    minHeight: 52,
     alignItems: 'center',
+    justifyContent: 'center',
     paddingVertical: Spacing.three,
+    paddingHorizontal: Spacing.four,
+    borderRadius: Radius.card,
+    borderWidth: 1.5,
   },
   resetPressed: {
     opacity: 0.7,
