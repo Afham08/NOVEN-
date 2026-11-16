@@ -9,7 +9,7 @@ import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
 import { GlassFill } from '@/components/ui/glass';
 import { SectionHeader } from '@/components/ui/section-header';
-import { Radius, Spacing, Type } from '@/constants/theme';
+import { Colors, Radius, Spacing, Type } from '@/constants/theme';
 import { exercisesCatalog, Exercise } from '@/data/exercises';
 import { useLanguage } from '@/hooks/use-language';
 import { useTheme } from '@/hooks/use-theme';
@@ -67,6 +67,7 @@ const EXERCISE_ICONS: Record<string, string> = {
 export default function ExerciseScreen() {
   const router = useRouter();
   const theme = useTheme();
+  const dark = theme === Colors.dark;
   const { language, t } = useLanguage();
   const [previewExercise, setPreviewExercise] = React.useState<Exercise | null>(null);
 
@@ -110,7 +111,7 @@ export default function ExerciseScreen() {
                 styles.exerciseCard,
                 {
                   backgroundColor: theme.exerciseGlass,
-                  borderColor: theme.glassBorder,
+                  borderColor: theme.activityGlassBorder,
                 },
               ]}>
               <View style={styles.cardInner}>
@@ -168,6 +169,7 @@ export default function ExerciseScreen() {
                     onPress={() => startSession(exercise)}
                     style={({ pressed }) => [
                       styles.startPill,
+                      dark ? styles.startPillShadow : styles.startPillFlat,
                       {
                         backgroundColor: theme.exerciseButton,
                         opacity: pressed ? 0.85 : 1,
@@ -323,6 +325,13 @@ const styles = StyleSheet.create({
     borderRadius: Radius.pill,
     alignItems: 'center',
     justifyContent: 'center',
+  },
+  startPillFlat: {
+    boxShadow: 'none',
+    shadowOpacity: 0,
+    elevation: 0,
+  },
+  startPillShadow: {
     shadowColor: '#000000',
     shadowOffset: { width: 0, height: 5 },
     shadowOpacity: 0.14,

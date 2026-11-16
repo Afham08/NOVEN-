@@ -36,10 +36,10 @@ export function Card({
 }: CardProps) {
   const theme = useTheme();
   const isInverse = variant === 'inverse';
-  const background = isInverse ? theme.surfaceInverse : theme.glass;
+  const background = isInverse ? theme.surfaceInverse : theme.activityGlass;
 
   const paddingValue = PADDING[padding];
-  const borderColor = bordered && !isInverse ? theme.glassBorder : 'transparent';
+  const borderColor = bordered && !isInverse ? theme.activityGlassBorder : 'transparent';
 
   return (
     <View

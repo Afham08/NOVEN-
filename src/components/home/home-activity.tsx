@@ -10,7 +10,7 @@ export function HomeActivity({ title, icon, wide, onPress }: {
   return (
     <Pressable accessibilityRole="button" accessibilityLabel={title} onPress={onPress}
       style={({ pressed, hovered }) => [styles.card, wide && styles.wide,
-        { backgroundColor: theme.glass, borderColor: hovered ? theme.accentStrong : theme.glassBorder,
+        { backgroundColor: theme.activityGlass, borderColor: hovered ? theme.accentStrong : theme.activityGlassBorder,
           boxShadow: `0 8px 24px ${theme.activityShadow}`, shadowColor: theme.activityShadow,
           opacity: pressed ? 0.78 : 1 }]}>
       <View pointerEvents="none" style={styles.glassClip}><GlassFill /></View>
