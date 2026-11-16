@@ -1,3 +1,11 @@
+<img width="1920" height="1080" alt="image" src="https://github.com/user-attachments/assets/a65c3f79-de31-4ba2-b7bd-6fcb8be274f1" />
+
+
+
+
+
+
+
 # to run on pc 
 ```
 npx expo start --web
