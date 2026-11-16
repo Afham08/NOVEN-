@@ -7,3 +7,14 @@
   --font-rounded: 'SF Pro Rounded', 'Hiragino Maru Gothic ProN', Meiryo, 'MS PGothic', sans-serif;
   --font-serif: Georgia, 'Times New Roman', serif;
 }
+
+/* NOVEN: custom glass app; native theme tokens live in constants/theme.ts. */
+:root { --noven-focus: #b94215; }
+html, body { overflow-x: clip; }
+[role="button"]:focus-visible, a:focus-visible, button:focus-visible {
+  outline: 3px solid var(--noven-focus);
+  outline-offset: 4px;
+}
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after { animation-duration: 0.01ms !important; transition-duration: 0.01ms !important; }
+}

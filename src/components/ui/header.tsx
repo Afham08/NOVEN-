@@ -13,17 +13,14 @@ export type HeaderProps = {
   trailing?: ReactNode;
 };
 
-export function Header({ title, eyebrow, subtitle, trailing }: HeaderProps) {
+export function Header({ title, subtitle, trailing }: HeaderProps) {
   const theme = useTheme();
 
   return (
     <View style={styles.container}>
       <View style={styles.row}>
         <View style={styles.copy}>
-          {eyebrow ? (
-            <Text style={[styles.eyebrow, { color: theme.accentSecondary }]}>{eyebrow}</Text>
-          ) : null}
-          <Text style={[styles.title, { color: theme.heading }]}>{title}</Text>
+          <Text accessibilityRole="header" style={[styles.title, { color: theme.heading }]}>{title}</Text>
           {subtitle ? (
             <Text style={[styles.subtitle, { color: theme.textSecondary }]}>{subtitle}</Text>
           ) : null}
@@ -36,7 +33,7 @@ export function Header({ title, eyebrow, subtitle, trailing }: HeaderProps) {
 
 const styles = StyleSheet.create({
   container: {
-    paddingHorizontal: Spacing.four,
+    paddingHorizontal: 0,
   },
   row: {
     flexDirection: 'row',
@@ -47,12 +44,6 @@ const styles = StyleSheet.create({
   copy: {
     flexShrink: 1,
     gap: Spacing.one,
-  },
-  eyebrow: {
-    ...Type.caption,
-    textTransform: 'uppercase',
-    letterSpacing: 1.5,
-    fontWeight: '700',
   },
   title: Type.headingLarge,
   subtitle: Type.body,

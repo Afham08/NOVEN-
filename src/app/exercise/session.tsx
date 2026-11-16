@@ -13,7 +13,7 @@ import { SessionTimer } from '@/components/session/session-timer';
 import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
 import { Header } from '@/components/ui/header';
-import { Radius, Spacing, Type } from '@/constants/theme';
+import { Spacing, Type } from '@/constants/theme';
 import { getExerciseById } from '@/data/exercises';
 import { completedFeedback, pausedFeedback, setupFeedback, type FeedbackCue } from '@/exercise/feedback';
 import { buildSessionMetrics, formatConsistencyLabel, formatDurationLabel, formatPaceLabel, formatRangeLabel } from '@/exercise/metrics';
@@ -55,7 +55,6 @@ export default function SessionScreen() {
   const [currentSet, setCurrentSet] = useState(1);
   const [repsInSet, setRepsInSet] = useState(0);
   const [, setTotalReps] = useState(0);
-  const [accuracyScore, setAccuracyScore] = useState(95);
   const [showRepPopup, setShowRepPopup] = useState(false);
   const [isSetResting, setIsSetResting] = useState(false);
   const [isWorkoutComplete, setIsWorkoutComplete] = useState(false);
@@ -124,6 +123,7 @@ export default function SessionScreen() {
    * ref is null and the controller it pointed at is disposed.
    */
   const voiceRef = useRef<VoiceFeedbackController | null>(null);
+  const [voiceEnabled, setVoiceEnabled] = useState(true);
 
   useEffect(() => {
     const voice = new VoiceFeedbackController(createExpoSpeechSink());
@@ -132,10 +132,23 @@ export default function SessionScreen() {
     // on it. This is the only place the setup copy is spoken.
     voice.announceSetup();
     return () => {
-      voice.dispose();
-      if (voiceRef.current === voice) voiceRef.current = null;
+      voiceRef.current?.dispose();
+      voiceRef.current = null;
     };
   }, []);
+
+  const toggleVoice = () => {
+    if (voiceEnabled) {
+      voiceRef.current?.dispose();
+      voiceRef.current = null;
+      setVoiceEnabled(false);
+      return;
+    }
+    const voice = new VoiceFeedbackController(createExpoSpeechSink());
+    voiceRef.current = voice;
+    voice.announceSetup();
+    setVoiceEnabled(true);
+  };
 
   /**
    * Leaving a finished session is one-shot. Without this a double tap on Done
@@ -218,8 +231,6 @@ export default function SessionScreen() {
       setShowRepPopup(false);
     }, 1800);
 
-    const score = Math.floor(93 + Math.random() * 6);
-    setAccuracyScore(score);
 
     setRepsInSet((prev) => {
       const nextReps = prev + 1;
@@ -466,15 +477,13 @@ export default function SessionScreen() {
     <Screen contentStyle={styles.content}>
       <Text
         accessibilityLabel={`${exercise.name}, ${chipLabel}`}
-        numberOfLines={1}
-        ellipsizeMode="tail"
-        style={[styles.exerciseName, { color: theme.heading }]}>
+                style={[styles.exerciseName, { color: theme.heading }]}>
         {exercise.name}
       </Text>
 
       {/* Massive Green +1 REP! Popup (Visible from across the room) */}
       {showRepPopup && (
-        <View style={styles.repPopup}>
+        <View style={[styles.repPopup, { backgroundColor: theme.success, shadowColor: theme.success }]}>
           <Text style={styles.repPopupText}>+1 REP!</Text>
         </View>
       )}
@@ -487,7 +496,7 @@ export default function SessionScreen() {
         the preview, and the tracker keeps its own full-width 1:1 frame.
       */}
       {hasCameraPermission ? (
-        <View style={[styles.cameraFrame, { backgroundColor: theme.cameraSurface }]}>
+        <View style={[styles.cameraFrame, { backgroundColor: theme.cameraSurface, borderColor: theme.glassBorder, shadowColor: theme.shadow }]}>
           {/*
             The tracker is unmounted once the session is over. The result screen
             is PUSHED, so this screen stays mounted behind it — and the native
@@ -509,6 +518,20 @@ export default function SessionScreen() {
       ) : (
         <CameraPlaceholder />
       )}
+
+      <View style={styles.sessionTools}>
+        <Button
+          variant="outline"
+          size="medium"
+          title={voiceEnabled ? 'Voice on' : 'Voice off'}
+          onPress={toggleVoice}
+          fullWidth={false}
+          style={styles.voiceButton}
+        />
+        <View style={[styles.trackingChip, { backgroundColor: theme.glass, borderColor: theme.glassBorder }]}>
+          <Text style={[styles.trackingChipText, { color: theme.textSecondary }]}>Camera tracking</Text>
+        </View>
+      </View>
 
       {phase === 'tracking-error' && trackingFailure ? (
         <Card
@@ -533,7 +556,7 @@ export default function SessionScreen() {
       {/* Set Rest Card (after completing 10 reps in a set) */}
       {isSetResting && (
         <Card variant="surface" padding="medium" style={styles.restCard}>
-          <Text style={[styles.restTitle, { color: theme.heading }]}>Set {currentSet} Complete! 🎉</Text>
+          <Text style={[styles.restTitle, { color: theme.heading }]}>Set {currentSet} complete</Text>
           <Text style={[styles.restSubtitle, { color: theme.textSecondary }]}>
             Take a moment to rest and catch your breath.
           </Text>
@@ -549,7 +572,7 @@ export default function SessionScreen() {
       {/* All Sets Complete Card (after completing all 3 sets) */}
       {isWorkoutComplete && (
         <Card variant="surface" padding="medium" style={styles.restCard}>
-          <Text style={[styles.restTitle, { color: theme.heading }]}>All 3 Sets Complete! 🏆</Text>
+          <Text style={[styles.restTitle, { color: theme.heading }]}>All sets complete</Text>
           <Text style={[styles.restSubtitle, { color: theme.textSecondary }]}>
             Fantastic job! You completed all 30 reps today.
           </Text>
@@ -568,7 +591,7 @@ export default function SessionScreen() {
         own instruction while exercising, and the setup line before Start.
       */}
       {phase !== 'ready' && (
-        <View style={styles.infoBar}>
+        <Card variant="surface" padding="medium" style={styles.infoBar}>
           <View style={styles.infoBarLeft}>
             <SessionTimer
               seconds={seconds}
@@ -577,10 +600,10 @@ export default function SessionScreen() {
             />
           </View>
           <View style={styles.infoBarRight}>
-            <Text numberOfLines={1} style={[styles.infoBarLabel, { color: theme.textSecondary }]}>GUIDANCE</Text>
-            <Text numberOfLines={1} style={[styles.infoBarValue, { color: theme.text }]}>{instructionText}</Text>
+            <Text numberOfLines={1} style={[styles.infoBarLabel, { color: theme.textSecondary }]}>Guidance</Text>
+            <Text style={[styles.infoBarValue, { color: theme.text }]}>{instructionText}</Text>
           </View>
-        </View>
+        </Card>
       )}
 
       {/* Primary Guidance & Visual Metrics: Big, minimal, visual */}
@@ -593,31 +616,29 @@ export default function SessionScreen() {
                 backgroundColor:
                   hud.feedback.kind === 'hold'
                     ? holdDuration >= 3
-                      ? '#10B981'
-                      : '#F59E0B'
+                      ? theme.success
+                      : theme.warning
                     : hud.feedback.kind === 'return' || hud.feedback.kind === 'good'
-                      ? '#10B981'
+                      ? theme.success
                       : theme.accent,
               },
             ]}>
-            <Text style={styles.actionBadgeText}>{actionGuide}</Text>
+            <Text style={[styles.actionBadgeText, { color: theme.onInverse }]}>{actionGuide}</Text>
           </View>
 
-          <View style={[styles.setsRepsContainer, { backgroundColor: theme.backgroundElement, borderColor: theme.border }]}>
+          <Card variant="surface" padding="none" style={styles.setsRepsContainer}>
             <View style={styles.setCol}>
-              <Text style={[styles.metricLabel, { color: theme.textSecondary }]}>SET</Text>
+              <Text style={[styles.metricLabel, { color: theme.textSecondary }]}>Set</Text>
               <Text style={[styles.metricValue, { color: theme.heading }]}>{currentSet} of 3</Text>
             </View>
             <View style={[styles.setDivider, { backgroundColor: theme.border }]} />
             <View style={styles.setCol}>
-              <Text style={[styles.metricLabel, { color: theme.textSecondary }]}>REPS</Text>
+              <Text style={[styles.metricLabel, { color: theme.textSecondary }]}>Reps</Text>
               <Text style={[styles.metricValue, { color: theme.heading }]}>{repsInSet} / 10</Text>
             </View>
-          </View>
+          </Card>
 
-          <Text style={[styles.accuracyScore, { color: '#10B981' }]}>
-            Form Accuracy: {accuracyScore} / 100
-          </Text>
+
         </View>
       )}
 
@@ -652,13 +673,13 @@ export default function SessionScreen() {
         // explains what is needed.
         hasCameraPermission ? (
           <View style={styles.startButtonWrapper}>
-            <Button variant="primary" title="Start" onPress={start} />
+            <Button variant="ink" title="Start" onPress={start} />
           </View>
         ) : null
       ) : (
         <View style={styles.controlsRow}>
           <Button
-            variant="primary"
+            variant="ink"
             title={phase === 'paused' ? 'Resume' : 'Pause'}
             onPress={phase === 'paused' ? resume : pause}
             fullWidth={false}
@@ -688,8 +709,13 @@ const styles = StyleSheet.create({
   cameraFrame: {
     width: '100%',
     aspectRatio: 1,
-    borderRadius: Radius.card,
+    borderRadius: 32,
+    borderWidth: 1,
     overflow: 'hidden',
+    shadowOffset: { width: 0, height: 12 },
+    shadowOpacity: 1,
+    shadowRadius: 28,
+    elevation: 6,
   },
   camera: {
     position: 'absolute',
@@ -716,14 +742,14 @@ const styles = StyleSheet.create({
     width: '100%',
   },
   actionBadge: {
-    paddingVertical: 10,
+    paddingVertical: 14,
     paddingHorizontal: 28,
-    borderRadius: Radius.control,
+    borderRadius: 24,
     alignSelf: 'center',
   },
   actionBadgeText: {
     color: '#FFFFFF',
-    fontSize: 22,
+    fontFamily: 'InterBold', fontSize: 22,
     fontWeight: '800',
     letterSpacing: 2,
     textAlign: 'center',
@@ -734,8 +760,8 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     width: '100%',
     paddingVertical: 16,
-    borderRadius: Radius.card,
-    borderWidth: 1,
+    borderRadius: 28,
+    overflow: 'hidden',
   },
   setCol: {
     flex: 1,
@@ -753,13 +779,13 @@ const styles = StyleSheet.create({
     marginBottom: 4,
   },
   metricValue: {
-    fontSize: 32,
+    fontFamily: 'InterBold', fontSize: 32,
     lineHeight: 38,
     fontWeight: '800',
     letterSpacing: 0.5,
   },
   accuracyScore: {
-    fontSize: 20,
+    fontFamily: 'InterBold', fontSize: 20,
     fontWeight: '800',
     letterSpacing: 1,
     textAlign: 'center',
@@ -769,12 +795,10 @@ const styles = StyleSheet.create({
     top: '32%',
     left: '10%',
     right: '10%',
-    backgroundColor: '#10B981',
     paddingVertical: 18,
     borderRadius: 28,
     alignItems: 'center',
     justifyContent: 'center',
-    shadowColor: '#10B981',
     shadowOffset: { width: 0, height: 8 },
     shadowOpacity: 0.6,
     shadowRadius: 20,
@@ -783,7 +807,7 @@ const styles = StyleSheet.create({
   },
   repPopupText: {
     color: '#FFFFFF',
-    fontSize: 52,
+    fontFamily: 'InterBold', fontSize: 52,
     fontWeight: '900',
     letterSpacing: 2,
     textAlign: 'center',
@@ -836,7 +860,7 @@ const styles = StyleSheet.create({
     textAlign: 'center',
   },
   repsValue: {
-    fontSize: 64,
+    fontFamily: 'InterBold', fontSize: 64,
     lineHeight: 72,
     fontWeight: '800',
     textAlign: 'center',
@@ -862,7 +886,7 @@ const styles = StyleSheet.create({
   },
   instructionBullet: {
     marginRight: Spacing.two,
-    fontSize: 18,
+    fontFamily: 'InterBold', fontSize: 18,
     lineHeight: 24,
     fontWeight: '800',
   },
@@ -893,7 +917,9 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
     alignItems: 'flex-start',
     width: '100%',
-    paddingHorizontal: Spacing.two,
+    paddingHorizontal: Spacing.four,
+    paddingVertical: Spacing.three,
+    borderRadius: 28,
     gap: Spacing.three,
   },
   infoBarLeft: {
@@ -902,14 +928,14 @@ const styles = StyleSheet.create({
   },
   infoBarRight: {
     flex: 2,
-    alignItems: 'flex-end',
+    alignItems: 'flex-start',
   },
   infoBarLabel: {
     ...Type.label,
     fontSize: 14,
     lineHeight: 20,
     fontWeight: '800',
-    letterSpacing: 2,
+    letterSpacing: 0,
   },
   infoBarValue: {
     ...Type.subheading,
@@ -922,5 +948,27 @@ const styles = StyleSheet.create({
   },
   controlButton: {
     flex: 1,
+  },
+  sessionTools: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: Spacing.two,
+  },
+  voiceButton: {
+    minWidth: 128,
+  },
+  trackingChip: {
+    flex: 1,
+    minHeight: 52,
+    borderWidth: 1,
+    borderRadius: 26,
+    justifyContent: 'center',
+    alignItems: 'center',
+    paddingHorizontal: Spacing.three,
+  },
+  trackingChipText: {
+    fontFamily: 'InterSemiBold',
+    fontSize: 15,
+    lineHeight: 21,
   },
 });

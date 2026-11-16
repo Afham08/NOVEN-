@@ -1,15 +1,16 @@
-import { LinearGradient } from 'expo-linear-gradient';
 import { useRouter } from 'expo-router';
 import { SymbolView } from 'expo-symbols';
 import { useVideoPlayer, VideoView } from 'expo-video';
 import * as React from 'react';
 import { Modal, Platform, Pressable, StyleSheet, Text, View } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { Screen } from '@/components/layout/screen';
 import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
+import { GlassFill } from '@/components/ui/glass';
 import { SectionHeader } from '@/components/ui/section-header';
-import { Radius, Spacing } from '@/constants/theme';
+import { Colors, Radius, Spacing, Type } from '@/constants/theme';
 import { exercisesCatalog, Exercise } from '@/data/exercises';
 import { useLanguage } from '@/hooks/use-language';
 import { useTheme } from '@/hooks/use-theme';
@@ -67,6 +68,8 @@ const EXERCISE_ICONS: Record<string, string> = {
 export default function ExerciseScreen() {
   const router = useRouter();
   const theme = useTheme();
+  const dark = theme === Colors.dark;
+  const insets = useSafeAreaInsets();
   const { language, t } = useLanguage();
   const [previewExercise, setPreviewExercise] = React.useState<Exercise | null>(null);
 
@@ -88,11 +91,9 @@ export default function ExerciseScreen() {
   };
 
   return (
-    <Screen>
+    <Screen contentStyle={{ paddingTop: Platform.OS === 'web' ? 88 : insets.top + 72 }}>
       <SectionHeader
-        accent
         title={t('todaysExercises')}
-        subtitle={t('exerciseSubtitle')}
       />
 
       <View style={styles.list}>
@@ -111,8 +112,10 @@ export default function ExerciseScreen() {
               style={[
                 styles.exerciseCard,
                 {
-                  backgroundColor: theme.backgroundElement,
-                  borderColor: theme.border,
+                  backgroundColor: theme.exerciseGlass,
+                  borderColor: theme.glassBorder,
+                  shadowColor: '#000000',
+                  shadowOpacity: dark ? 0.24 : 0.12,
                 },
               ]}>
               <View style={styles.cardInner}>
@@ -121,8 +124,8 @@ export default function ExerciseScreen() {
                     style={[
                       styles.iconHalo,
                       {
-                        backgroundColor: theme.background,
-                        borderColor: theme.border,
+                        backgroundColor: theme.backgroundElement,
+                        borderColor: theme.glassBorder,
                       },
                     ]}>
                     <SymbolView
@@ -132,7 +135,7 @@ export default function ExerciseScreen() {
                         web: 'fitness_center',
                       }}
                       size={26}
-                      tintColor="#F37F46"
+                      tintColor={theme.accentStrong}
                     />
                   </View>
 
@@ -149,22 +152,24 @@ export default function ExerciseScreen() {
                 <View style={styles.buttonRow}>
                   {/* 1. Preview Video Button */}
                   <Pressable
+                    accessibilityRole="button"
                     onPress={() => setPreviewExercise(exercise)}
                     style={({ pressed }) => [
                       styles.previewPill,
                       {
-                        backgroundColor: theme.background,
-                        borderColor: theme.border,
+                        backgroundColor: theme.glass,
+                        borderColor: theme.glassBorder,
                         opacity: pressed ? 0.75 : 1,
                       },
                     ]}>
                     <Text style={[styles.previewPillText, { color: theme.textSecondary }]}>
-                      👁️ {t('preview')}
+                      {language === 'kn' ? t('preview') : 'Watch demo'}
                     </Text>
                   </Pressable>
 
                   {/* 2. Direct Start Hero Ember Button */}
                   <Pressable
+                    accessibilityRole="button"
                     onPress={() => startSession(exercise)}
                     style={({ pressed }) => [
                       styles.startPill,
@@ -173,15 +178,11 @@ export default function ExerciseScreen() {
                         transform: [{ scale: pressed ? 0.98 : 1 }],
                       },
                     ]}>
-                    <LinearGradient
-                      colors={['#F37F46', '#E26322']}
-                      start={{ x: 0, y: 0 }}
-                      end={{ x: 1, y: 1 }}
-                      style={styles.startGradient}>
-                      <Text style={styles.startPillText}>
-                        ▶ {t('start')}
+                    <View style={[styles.startGradient, { backgroundColor: theme.exerciseButton }]}>
+                      <Text style={[styles.startPillText, { color: theme.exerciseButtonText }]}>
+                        {t('start')}
                       </Text>
-                    </LinearGradient>
+                    </View>
                   </Pressable>
                 </View>
               </View>
@@ -202,17 +203,20 @@ export default function ExerciseScreen() {
               style={[
                 styles.modalCard,
                 {
-                  backgroundColor: theme.backgroundElement,
-                  borderColor: theme.border,
+                  backgroundColor: theme.glass,
+                  borderColor: theme.glassBorder,
                 },
               ]}>
+              <GlassFill />
               <View style={styles.modalHeader}>
                 <Text style={[styles.modalTitle, { color: theme.heading }]}>
                   {getLocalizedName(previewExercise)}
                 </Text>
                 <Pressable
                   onPress={() => setPreviewExercise(null)}
-                  style={[styles.closeIconBtn, { backgroundColor: theme.background }]}>
+                  accessibilityRole="button"
+                  accessibilityLabel="Close demo"
+                  style={[styles.closeIconBtn, { backgroundColor: theme.backgroundElement }]}>
                   <Text style={[styles.closeIconText, { color: theme.textSecondary }]}>✕</Text>
                 </Pressable>
               </View>
@@ -247,7 +251,7 @@ export default function ExerciseScreen() {
                   style={styles.modalBtn}
                 />
                 <Button
-                  variant="primary"
+                  variant="ink"
                   title={t('startExercise')}
                   onPress={() => startSession(previewExercise)}
                   style={styles.modalBtn}
@@ -267,18 +271,17 @@ const styles = StyleSheet.create({
     marginTop: Spacing.two,
   },
   exerciseCard: {
-    borderRadius: 28,
+    borderRadius: 32,
     borderWidth: 1,
     overflow: 'hidden',
-    shadowColor: 'rgba(0,0,0,0.06)',
     shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.15,
-    shadowRadius: 12,
+    shadowOpacity: 0.12,
+    shadowRadius: 24,
     elevation: 3,
   },
   cardInner: {
-    padding: 20,
-    gap: Spacing.three,
+    padding: 24,
+    gap: Spacing.four,
   },
   cardHeaderRow: {
     flexDirection: 'row',
@@ -298,12 +301,13 @@ const styles = StyleSheet.create({
     gap: 4,
   },
   exerciseName: {
-    fontSize: 20,
-    fontWeight: '800',
+    ...Type.heading,
+    fontSize: 24,
+    lineHeight: 31,
     letterSpacing: -0.2,
   },
   exerciseMeta: {
-    fontSize: 14,
+    fontFamily: 'InterBody', fontSize: 16,
     fontWeight: '600',
   },
   buttonRow: {
@@ -313,6 +317,7 @@ const styles = StyleSheet.create({
   },
   previewPill: {
     flex: 1,
+    minHeight: 52,
     paddingVertical: 14,
     borderRadius: Radius.pill,
     borderWidth: 1,
@@ -320,16 +325,16 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
   },
   previewPillText: {
-    fontSize: 15,
+    fontFamily: 'InterBold', fontSize: 15,
     fontWeight: '700',
   },
   startPill: {
     flex: 1,
     borderRadius: Radius.pill,
     overflow: 'hidden',
-    shadowColor: '#F37F46',
+    shadowColor: '#000000',
     shadowOffset: { width: 0, height: 6 },
-    shadowOpacity: 0.3,
+    shadowOpacity: 0.16,
     shadowRadius: 10,
     elevation: 5,
   },
@@ -340,13 +345,13 @@ const styles = StyleSheet.create({
   },
   startPillText: {
     color: '#FFFFFF',
-    fontSize: 16,
+    fontFamily: 'InterBold', fontSize: 16,
     fontWeight: '800',
     letterSpacing: 0.3,
   },
   modalBackdrop: {
     flex: 1,
-    backgroundColor: 'rgba(0, 0, 0, 0.8)',
+    backgroundColor: 'rgba(0, 0, 0, 0.58)',
     justifyContent: 'center',
     alignItems: 'center',
     padding: Spacing.three,
@@ -354,9 +359,10 @@ const styles = StyleSheet.create({
   modalCard: {
     width: '100%',
     maxWidth: 520,
-    borderRadius: 28,
+    borderRadius: 34,
     borderWidth: 1,
-    padding: 22,
+    padding: 24,
+    overflow: 'hidden',
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 16 },
     shadowOpacity: 0.4,
@@ -370,7 +376,7 @@ const styles = StyleSheet.create({
     marginBottom: Spacing.three,
   },
   modalTitle: {
-    fontSize: 20,
+    fontFamily: 'InterBold', fontSize: 20,
     fontWeight: '800',
     flex: 1,
     marginRight: Spacing.two,
@@ -383,7 +389,7 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
   },
   closeIconText: {
-    fontSize: 16,
+    fontFamily: 'InterBody', fontSize: 16,
     fontWeight: 'bold',
   },
   videoWrapper: {

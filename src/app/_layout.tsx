@@ -1,7 +1,9 @@
+import { useFonts } from 'expo-font';
+import { BlurView } from 'expo-blur';
 import { DarkTheme, DefaultTheme, Stack, ThemeProvider } from 'expo-router';
 import * as SplashScreen from 'expo-splash-screen';
 import { useEffect } from 'react';
-import { Platform, StatusBar, useColorScheme } from 'react-native';
+import { Platform, StatusBar, StyleSheet, useColorScheme, View } from 'react-native';
 
 import { isMediaAbortError, isMediaAbortRejection } from '@/activities/meditation-audio';
 import { AnimatedSplashOverlay } from '@/components/animated-icon';
@@ -27,6 +29,12 @@ if (Platform.OS !== 'web') {
  * another.
  */
 export default function RootLayout() {
+  useFonts({
+    InterBody: require('../../assets/fonts/Inter-Regular.ttf'),
+    InterSemiBold: require('../../assets/fonts/Inter-SemiBold.ttf'),
+    InterBold: require('../../assets/fonts/Inter-Bold.ttf'),
+    InterExtraBold: require('../../assets/fonts/InterDisplay-ExtraBold.ttf'),
+  });
   useEffect(() => {
     if (typeof window === 'undefined' || typeof window.addEventListener !== 'function') {
       return;
@@ -107,7 +115,7 @@ function RootNavigator() {
         backgroundColor={palette.background}
       />
       <AnimatedSplashOverlay />
-      <Stack>
+      <Stack screenOptions={{ headerStyle: { backgroundColor: palette.glass }, headerTintColor: palette.text, headerShadowVisible: false, headerTitleStyle: { fontFamily: 'InterSemiBold', fontSize: 20 }, contentStyle: { backgroundColor: palette.background } }}>
         <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
 
         {/*
@@ -115,7 +123,22 @@ function RootNavigator() {
           keeps a titled header. That header is the only visible way back once
           the tab bar is covered, so these screens must not be headerless.
         */}
-        <Stack.Screen name="exercise/index" options={{ title: 'Exercise' }} />
+        <Stack.Screen
+          name="exercise/index"
+          options={{
+            title: 'Exercise',
+            headerTransparent: true,
+            headerStyle: { backgroundColor: 'transparent' },
+            headerBackground: () => (
+              <BlurView
+                intensity={54}
+                tint={isDark ? 'dark' : 'light'}
+                style={[styles.frostedHeader, { borderColor: palette.glassBorder }]}>
+                <View style={[StyleSheet.absoluteFill, { backgroundColor: palette.headerGlass }]} />
+              </BlurView>
+            ),
+          }}
+        />
         <Stack.Screen name="yoga" options={{ title: 'Yoga' }} />
         <Stack.Screen name="meditation" options={{ title: 'Meditation' }} />
         <Stack.Screen name="wellness" options={{ title: 'Wellness' }} />
@@ -151,3 +174,11 @@ function RootNavigator() {
     </ThemeProvider>
   );
 }
+
+const styles = StyleSheet.create({
+  frostedHeader: {
+    flex: 1,
+    overflow: 'hidden',
+    borderBottomWidth: StyleSheet.hairlineWidth,
+  },
+});

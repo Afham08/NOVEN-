@@ -1,3 +1,4 @@
+import { useTheme } from '@/hooks/use-theme';
 import {
   Tabs,
   TabList,
@@ -11,7 +12,7 @@ import { Pressable, View, StyleSheet, useWindowDimensions } from 'react-native';
 import { ThemedText } from './themed-text';
 import { ThemedView } from './themed-view';
 
-import { MaxContentWidth, Spacing, Type } from '@/constants/theme';
+import { Spacing, Type } from '@/constants/theme';
 
 /**
  * The web tab bar, matching the native one exactly: the same four primary
@@ -26,7 +27,7 @@ export default function AppTabs() {
 
   return (
     <Tabs>
-      <TabSlot style={{ height: '100%', paddingBottom: isMobile ? 80 : 0 }} />
+      <TabSlot style={{ flex: 1, paddingBottom: isMobile ? 88 : 0 }} />
       <TabList asChild>
         <CustomTabList>
           <TabTrigger name="index" href="/" asChild>
@@ -54,6 +55,7 @@ export default function AppTabs() {
  * place with small text on it.
  */
 export function TabButton({ children, isFocused, ...props }: TabTriggerSlotProps) {
+  const theme = useTheme();
   if (children === 'Activities') {
     return null;
   }
@@ -61,13 +63,13 @@ export function TabButton({ children, isFocused, ...props }: TabTriggerSlotProps
     <Pressable {...props} style={({ pressed }) => pressed && styles.pressed}>
       <ThemedView
         type={isFocused ? 'backgroundSelected' : 'backgroundElement'}
-        style={styles.tabButtonView}>
+        style={[styles.tabButtonView, { backgroundColor: isFocused ? theme.backgroundElement : 'transparent' }]}>
         {/*
           The active tab is marked by the filled background above and by the
           darker, bolder text here, so the current page is obvious without
           relying on colour alone.
         */}
-        <ThemedText type="default" themeColor={isFocused ? 'text' : 'textSecondary'} style={styles.tabLabel}>
+        <ThemedText type="default" themeColor={isFocused ? 'text' : 'textSecondary'} style={[styles.tabLabel, { color: isFocused ? theme.text : theme.textSecondary }]}>
           {children}
         </ThemedText>
       </ThemedView>
@@ -76,18 +78,13 @@ export function TabButton({ children, isFocused, ...props }: TabTriggerSlotProps
 }
 
 export function CustomTabList(props: TabListProps) {
+  const theme = useTheme();
   const { width } = useWindowDimensions();
   const isMobile = width < 768;
 
   return (
     <View {...props} style={[styles.tabListContainer, isMobile && styles.tabListContainerMobile]}>
-      <ThemedView type="backgroundElement" style={[styles.innerContainer, isMobile && styles.innerContainerMobile]}>
-        {!isMobile && (
-          <ThemedText type="smallBold" style={styles.brandText}>
-            NOVEN
-          </ThemedText>
-        )}
-
+      <ThemedView type="backgroundElement" style={[styles.innerContainer, isMobile && styles.innerContainerMobile, { backgroundColor: theme.glass, borderColor: theme.glassBorder, backdropFilter: 'blur(24px)' }]}>
         {props.children}
       </ThemedView>
     </View>
@@ -113,12 +110,16 @@ const styles = StyleSheet.create({
   innerContainer: {
     paddingVertical: Spacing.two,
     paddingHorizontal: Spacing.five,
-    borderRadius: Spacing.five,
+    borderRadius: 30,
+    borderWidth: 1,
+    borderColor: 'rgba(140,120,100,0.15)',
+    boxShadow: '0 8px 32px rgba(40,25,15,0.06)',
     flexDirection: 'row',
     alignItems: 'center',
     flexGrow: 1,
     gap: Spacing.two,
-    maxWidth: MaxContentWidth,
+    maxWidth: 440,
+    justifyContent: 'center',
   },
   innerContainerMobile: {
     justifyContent: 'space-around',
@@ -126,7 +127,7 @@ const styles = StyleSheet.create({
     maxWidth: '100%',
     paddingHorizontal: Spacing.two,
     borderRadius: 24,
-    boxShadow: '0 -4px 16px rgba(0,0,0,0.3)',
+    boxShadow: '0 4px 24px rgba(40,25,15,0.08)',
   },
   brandText: {
     marginRight: 'auto',

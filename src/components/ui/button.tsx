@@ -4,7 +4,7 @@ import { ActivityIndicator, Pressable, StyleSheet, Text, type PressableProps, ty
 import { Radius, Spacing, Type } from '@/constants/theme';
 import { useTheme } from '@/hooks/use-theme';
 
-export type ButtonVariant = 'primary' | 'secondary' | 'outline' | 'ghost' | 'destructive';
+export type ButtonVariant = 'primary' | 'secondary' | 'outline' | 'ghost' | 'destructive' | 'ink';
 export type ButtonSize = 'large' | 'medium';
 
 export type ButtonProps = PressableProps & {
@@ -31,8 +31,8 @@ const SIZE_STYLES = {
 } as const;
 
 const LABEL_STYLES = {
-  large: { fontSize: 19, lineHeight: 26 },
-  medium: { fontSize: 17, lineHeight: 24 },
+  large: { fontFamily: 'InterBody', fontSize: 19, lineHeight: 26 },
+  medium: { fontFamily: 'InterBody', fontSize: 17, lineHeight: 24 },
 } as const;
 
 export function Button({
@@ -50,7 +50,7 @@ export function Button({
 }: ButtonProps) {
   const theme = useTheme();
 
-  const filled = variant === 'primary' || variant === 'secondary' || variant === 'destructive';
+  const filled = variant === 'primary' || variant === 'secondary' || variant === 'destructive' || variant === 'ink';
 
   /*
    * A filled control is the thing being looked at, so it carries its own
@@ -70,14 +70,16 @@ export function Button({
    * a border so it still reads as a control when it is not filled.
    */
   const background = filled
-    ? variant === 'primary'
-      ? theme.accentStrong
+      ? variant === 'ink' || variant === 'primary'
+        ? theme.exerciseButton
       : variant === 'secondary'
         ? theme.accentSecondary
         : theme.danger
     : 'transparent';
   const foreground = filled
-    ? variant === 'destructive'
+    ? variant === 'ink' || variant === 'primary'
+      ? theme.exerciseButtonText
+      : variant === 'destructive'
       ? theme.onDanger
       : theme.onAccent
     : variant === 'outline'
@@ -89,12 +91,13 @@ export function Button({
     <Pressable
       accessibilityRole="button"
       accessibilityLabel={title}
-      disabled={disabled ?? loading}
+      disabled={disabled || loading}
+      accessibilityState={{ disabled: Boolean(disabled || loading), busy: loading }}
       onPress={onPress}
       style={({ pressed }) => [
         styles.base,
         fullWidth && styles.fullWidth,
-        { backgroundColor: background, opacity: disabled ? 0.5 : pressed ? 0.85 : 1 },
+        { backgroundColor: background, opacity: disabled || loading ? 0.5 : pressed ? 0.85 : 1 },
         border,
         SIZE_STYLES[size],
         style,
@@ -124,6 +127,9 @@ const styles = StyleSheet.create({
     width: '100%',
   },
   label: {
+    flexShrink: 1,
+    minWidth: 0,
+    textAlign: 'center',
     fontFamily: Type.label.fontFamily,
     fontWeight: '700',
     letterSpacing: 0.2,

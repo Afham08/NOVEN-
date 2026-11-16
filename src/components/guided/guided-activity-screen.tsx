@@ -1357,7 +1357,7 @@ export function GuidedActivityScreen({ activity }: GuidedActivityScreenProps) {
         posture panel it would put two different measurements under one breath.
       */}
       {isBreathingStep && breath !== null && breath.phaseId !== null && (
-        <View style={[styles.breathBlock, { backgroundColor: theme.backgroundElement }]}>
+        <View style={[styles.breathBlock, { backgroundColor: theme.glass, borderColor: theme.glassBorder, shadowColor: theme.shadow }]}>
           <Text style={[styles.breathLabel, { color: theme.textSecondary }]}>
             {breath.techniqueName.toUpperCase()}
           </Text>
@@ -1487,7 +1487,7 @@ export function GuidedActivityScreen({ activity }: GuidedActivityScreenProps) {
          * `startFresh` is what actually makes a stale completion harmless.
          */
         <Button
-          variant="primary"
+          variant="ink"
           title={snapshot.finished ? 'Start again' : 'Start'}
           onPress={startFresh}
           loading={saving}
@@ -1496,7 +1496,7 @@ export function GuidedActivityScreen({ activity }: GuidedActivityScreenProps) {
       ) : (
         <View style={styles.controls}>
           <Button
-            variant="primary"
+            variant="ink"
             title={snapshot.phase === 'paused' ? 'Resume' : 'Pause'}
             onPress={snapshot.phase === 'paused' ? resume : pause}
             fullWidth={false}
@@ -1557,7 +1557,7 @@ export function GuidedActivityScreen({ activity }: GuidedActivityScreenProps) {
           onPress={startFresh}
           style={({ pressed }) => [
             styles.reset,
-            { borderColor: theme.border, backgroundColor: theme.backgroundElement },
+            { borderColor: theme.glassBorder, backgroundColor: theme.glass },
             pressed && styles.resetPressed,
           ]}>
           <Text style={[styles.resetText, { color: theme.text }]}>Start again</Text>
@@ -1727,6 +1727,12 @@ const styles = StyleSheet.create({
     gap: Spacing.two,
     padding: Spacing.four,
     borderRadius: Radius.card,
+    borderWidth: 1,
+    overflow: 'hidden',
+    shadowOffset: { width: 0, height: 10 },
+    shadowOpacity: 1,
+    shadowRadius: 22,
+    elevation: 2,
   },
   breathLabel: {
     ...Type.label,
@@ -1941,7 +1947,7 @@ const styles = StyleSheet.create({
     letterSpacing: 5,
   },
   cameraRepsValue: {
-    fontSize: 84,
+    fontFamily: 'InterBold', fontSize: 84,
     lineHeight: 90,
     fontWeight: '800',
     textAlign: 'center',

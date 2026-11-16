@@ -1,3 +1,4 @@
+import { LinearGradient } from 'expo-linear-gradient';
 import type { BreathPhaseId } from '@/activities/breath-cycle';
 import { useTheme } from '@/hooks/use-theme';
 import { useEffect } from 'react';
@@ -88,6 +89,7 @@ export function BreathingOrb({
           },
           animatedOrbStyle,
         ]}>
+        <LinearGradient pointerEvents="none" colors={[theme.accentSoft, theme.backgroundElement]} style={[StyleSheet.absoluteFill, { borderRadius: 999 }]} />
         <View style={styles.content}>
           <Text style={[styles.phaseText, { color: theme.heading }]}>
             {label}
@@ -139,13 +141,13 @@ const styles = StyleSheet.create({
     gap: 4,
   },
   phaseText: {
-    fontSize: 34,
+    fontFamily: 'InterBold', fontSize: 34,
     lineHeight: 40,
     fontWeight: '700',
     textAlign: 'center',
   },
   secondsText: {
-    fontSize: 26,
+    fontFamily: 'InterBold', fontSize: 26,
     lineHeight: 32,
     fontWeight: '700',
     fontVariant: ['tabular-nums'],

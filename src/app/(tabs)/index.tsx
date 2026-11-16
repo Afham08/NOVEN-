@@ -1,214 +1,85 @@
-import { LinearGradient } from 'expo-linear-gradient';
-import { useRouter } from 'expo-router';
-import { SymbolView } from 'expo-symbols';
-import * as React from 'react';
-import {
-  Image,
-  Pressable,
-  StyleSheet,
-  useColorScheme,
-  View,
-} from 'react-native';
-
-import { ActivityCard } from '@/components/cards/activity-card';
-import { ScoreCard } from '@/components/cards/score-card';
-import { Screen } from '@/components/layout/screen';
-import { SessionHistoryLoadNotice } from '@/components/session/session-history-load-notice';
-import { Header } from '@/components/ui/header';
-import { Spacing } from '@/constants/theme';
-import { progressHint } from '@/exercise/progress';
-import { sessionStore } from '@/exercise/session-storage';
-import { useLanguage } from '@/hooks/use-language';
-import { useProgress } from '@/hooks/use-progress';
+import { GlassTarget } from '@/components/ui/glass';
 import { useTheme } from '@/hooks/use-theme';
 import { useThemePreference } from '@/hooks/use-theme-preference';
+import { Colors, Fonts } from '@/constants/theme';
+import { BlurTargetView } from 'expo-blur';
+import { useRouter } from 'expo-router';
+import { SymbolView } from 'expo-symbols';
+import { useRef } from 'react';
+import { Platform, Pressable, ScrollView, StyleSheet, Text, useWindowDimensions, View } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { HomeActivity } from '@/components/home/home-activity';
+import { HomeBackground } from '@/components/home/home-background';
+import { useLanguage } from '@/hooks/use-language';
 
-/**
- * Modern Gradient Minimalist Home Screen:
- * - Features the blended background wallpaper with modern gradient & glassmorphism blur
- * - Ember Pill signature design: High-contrast, large touch-friendly cards
- * - 3 Primary Activities: Exercise, Yoga, Meditation with full-pill Start actions
- * - Full Light/Dark mode and Kannada/English language support
- */
 export default function HomeScreen() {
-  const theme = useTheme();
   const router = useRouter();
-  const { t } = useLanguage();
-  const colorScheme = useColorScheme();
-  const { preference } = useThemePreference();
-  const isDark = (preference === 'system' ? colorScheme : preference) === 'dark';
-
-  const { summary, totalSessions, issue, retry } = useProgress(sessionStore);
-
-  return (
-    <View style={[styles.rootContainer, { backgroundColor: theme.background }]}>
-      {/* Blended Background Wallpaper with Modern Gradient & Glassmorphism Fade */}
-      <View style={styles.backgroundWrapper} pointerEvents="none">
-        <Image
-          source={require('../../../assets/design/backgound.png')}
-          style={styles.backgroundImage}
-          resizeMode="cover"
-        />
-        <LinearGradient
-          colors={[
-            isDark ? 'rgba(11, 13, 19, 0.25)' : 'rgba(250, 249, 246, 0.2)',
-            isDark ? 'rgba(11, 13, 19, 0.85)' : 'rgba(250, 249, 246, 0.85)',
-            theme.background,
-          ]}
-          locations={[0, 0.45, 0.9]}
-          style={StyleSheet.absoluteFill}
-        />
-      </View>
-
-      <Screen contentStyle={styles.screenContent}>
-        <Header
-          eyebrow={t('appName')}
-          title={t('welcomeHome')}
-          trailing={<SettingsButton onPress={() => router.push('/settings')} />}
-        />
-
-        {/* Retained for test suite contracts, hidden visually for minimalist UX */}
-        <View style={{ display: 'none' }}>
-          <Pressable onPress={() => router.navigate('/progress')}>
-            <ScoreCard
-              variant="surface"
-              emphasis="sage"
-              score={summary?.latest?.score}
-              label="Progress score"
-              hint={progressHint(summary, totalSessions)}
-            />
-          </Pressable>
-          <Pressable onPress={() => router.navigate('/activities')} />
-        </View>
-
-        {issue ? <SessionHistoryLoadNotice issue={issue} onRetry={retry} /> : null}
-
-        <View style={styles.cardList}>
-          {/* 1. Exercise - Hero Ember Gradient Card */}
-          <ActivityCard
-            isHero
-            gradientColors={
-              isDark
-                ? ['#F37F46', '#D65720']
-                : ['#F37F46', '#FF9256']
-            }
-            icon={
-              <SymbolView
-                name={{ ios: 'figure.walk', android: 'fitness_center', web: 'fitness_center' }}
-                size={32}
-                tintColor="#F37F46"
-              />
-            }
-            title={t('exercise')}
-            rightLabel={t('start')}
-            onPress={() => router.push('/exercise')}
-          />
-
-          {/* 2. Yoga - Modern Emerald/Sage Glass Gradient Card */}
-          <ActivityCard
-            gradientColors={
-              isDark
-                ? ['#162820', '#101D17']
-                : ['#EBF5F0', '#D8ECE1']
-            }
-            icon={
-              <SymbolView
-                name={{ ios: 'figure.mind.and.body', android: 'self_improvement', web: 'self_improvement' }}
-                size={30}
-                tintColor={isDark ? '#34C759' : '#2F7C48'}
-              />
-            }
-            title={t('yoga')}
-            rightLabel={t('start')}
-            onPress={() => router.push('/yoga')}
-          />
-
-          {/* 3. Meditation - Modern Indigo/Violet Glass Gradient Card */}
-          <ActivityCard
-            gradientColors={
-              isDark
-                ? ['#201C33', '#151224']
-                : ['#F0EEF9', '#E0DCF3']
-            }
-            icon={
-              <SymbolView
-                name={{ ios: 'heart.fill', android: 'spa', web: 'spa' }}
-                size={28}
-                tintColor={isDark ? '#A78BFA' : '#6366F1'}
-              />
-            }
-            title={t('meditation')}
-            rightLabel={t('start')}
-            onPress={() => router.push('/meditation')}
-          />
-        </View>
-      </Screen>
-    </View>
-  );
-}
-
-function SettingsButton({ onPress }: { onPress: () => void }) {
   const theme = useTheme();
-
+  const { setPreference } = useThemePreference();
+  const dark = theme === Colors.dark;
+  const { width, fontScale } = useWindowDimensions();
+  const wide = width >= 850 && fontScale < 1.5;
+  const insets = useSafeAreaInsets();
+  const target = useRef<View | null>(null);
+  const { t, language } = useLanguage();
+  const kn = language === 'kn';
+  const activityFont = kn ? Fonts.sans : 'InterBold';
   return (
-    <Pressable
-      onPress={onPress}
-      accessibilityRole="button"
-      accessibilityLabel="Settings"
-      accessibilityHint="Opens settings"
-      style={({ pressed }) => [
-        styles.settingsButton,
-        {
-          backgroundColor: theme.backgroundElement,
-          borderColor: theme.border,
-          opacity: pressed ? 0.7 : 1,
-        },
-      ]}>
-      <SymbolView
-        name={{ ios: 'gearshape', android: 'settings', web: 'settings' }}
-        size={24}
-        tintColor={theme.text}
-      />
-    </Pressable>
+    <GlassTarget.Provider value={target}>
+    <View style={[styles.root, { backgroundColor: theme.background }]}>
+      <BlurTargetView ref={target} pointerEvents="none" style={StyleSheet.absoluteFill}>
+        <HomeBackground />
+      </BlurTargetView>
+      <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={[styles.content,
+        { paddingTop: Platform.OS === 'web' && width >= 768 ? 72 : insets.top + 10,
+          paddingBottom: 32 + insets.bottom }]}>
+        <View style={styles.tools}>
+          <Pressable accessibilityRole="button" accessibilityLabel={dark ? 'Switch to light mode' : 'Switch to dark mode'} onPress={() => setPreference(dark ? 'light' : 'dark')}
+            style={[styles.settings, { backgroundColor: theme.glass, borderColor: theme.glassBorder }]}>
+            <SymbolView name={{ ios: dark ? 'sun.max' : 'moon', android: dark ? 'light_mode' : 'dark_mode', web: dark ? 'light_mode' : 'dark_mode' }} size={24} tintColor={theme.text} />
+          </Pressable>
+          <Pressable accessibilityRole="button" accessibilityLabel={t('settings')} onPress={() => router.push('/settings')}
+            style={({ pressed }) => [styles.settings, { backgroundColor: theme.glass, borderColor: theme.glassBorder, opacity: pressed ? 0.6 : 1 }]}>
+            <SymbolView name={{ ios: 'gearshape', android: 'settings', web: 'settings' }} size={24} tintColor={theme.text} />
+          </Pressable>
+        </View>
+        <View style={[styles.wordmarkShell, { shadowColor: '#000000' }]}>
+          <Text accessibilityRole="header" style={[styles.wordmark,
+            { color: theme.heading, fontFamily: kn ? Fonts.sans : 'InterExtraBold',
+              fontWeight: '900',
+              fontSize: wide ? 108 : 66, lineHeight: wide ? 116 : 76,
+              letterSpacing: kn ? 0 : wide ? -7.5 : -4.2 }]}>{t('appName')}</Text>
+        </View>
+        <View style={[styles.sectionHeading, wide && { marginTop: 22 }]}>
+          <Text style={[styles.sectionLabel, { fontFamily: activityFont, color: theme.text }]}>{kn ? 'ಚಟುವಟಿಕೆಗಳು' : 'Activities'}</Text>
+          <Pressable accessibilityRole="button" onPress={() => router.push('/activities')} style={styles.allActivities}>
+            <Text style={[styles.footerLink, { color: theme.text }]}>{kn ? 'ಎಲ್ಲವನ್ನೂ ನೋಡಿ' : 'View all'}</Text>
+          </Pressable>
+        </View>
+        <View style={[styles.panel, wide && { flexDirection: 'row' }]}>
+          <HomeActivity title={t('exercise')} wide={wide} onPress={() => router.push('/exercise')}
+            icon={<SymbolView name={{ ios: 'figure.walk', android: 'fitness_center', web: 'fitness_center' }} size={28} tintColor={theme.accentStrong} />} />
+          <HomeActivity title={t('yoga')} wide={wide} onPress={() => router.push('/yoga')}
+            icon={<SymbolView name={{ ios: 'figure.mind.and.body', android: 'self_improvement', web: 'self_improvement' }} size={28} tintColor={theme.accentStrong} />} />
+          <HomeActivity title={t('meditation')} wide={wide} onPress={() => router.push('/meditation')}
+            icon={<SymbolView name={{ ios: 'sparkles', android: 'spa', web: 'spa' }} size={28} tintColor={theme.accentStrong} />} />
+        </View>
+      </ScrollView>
+    </View>
+    </GlassTarget.Provider>
   );
 }
-
 const styles = StyleSheet.create({
-  rootContainer: {
-    flex: 1,
-    position: 'relative',
-  },
-  backgroundWrapper: {
-    position: 'absolute',
-    top: 0,
-    left: 0,
-    right: 0,
-    height: 420,
-    overflow: 'hidden',
-  },
-  backgroundImage: {
-    width: '100%',
-    height: '100%',
-    opacity: 0.65,
-  },
-  screenContent: {
-    paddingBottom: 40,
-  },
-  cardList: {
-    gap: Spacing.four,
-    marginTop: Spacing.three,
-  },
-  settingsButton: {
-    width: 48,
-    height: 48,
-    borderRadius: 24,
-    borderWidth: 1,
-    alignItems: 'center',
-    justifyContent: 'center',
-    shadowColor: 'rgba(0,0,0,0.08)',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.2,
-    shadowRadius: 6,
-    elevation: 3,
-  },
+  root: { flex: 1, backgroundColor: '#FFFFFF' },
+  content: { width: '100%', maxWidth: 1120, alignSelf: 'center', paddingHorizontal: 20 },
+  tools: { flexDirection: 'row', justifyContent: 'flex-end', gap: 10 },
+  wordmarkShell: { marginTop: -2, shadowOffset: { width: 0, height: 8 }, shadowOpacity: 0.12, shadowRadius: 18 },
+  wordmark: { textAlign: 'center', textShadowColor: 'rgba(255,255,255,0.52)', textShadowOffset: { width: 0, height: 0 }, textShadowRadius: 12 },
+  settings: { width: 50, height: 50, borderRadius: 25, borderWidth: 1, borderColor: '#FFFFFFAA',
+    backgroundColor: '#FFFFFF80', justifyContent: 'center', alignItems: 'center' },
+  sectionHeading: { marginTop: 18, marginBottom: 12, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 16 },
+  sectionLabel: { color: '#38312B', fontFamily: 'InterBody', fontSize: 20, lineHeight: 28 },
+  allActivities: { minHeight: 48, justifyContent: 'center', paddingHorizontal: 4 },
+  footerLink: { fontFamily: Fonts.sans, color: '#4D443B', fontSize: 16, lineHeight: 24, fontWeight: '600' },
+  panel: { gap: 20 },
 });

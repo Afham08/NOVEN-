@@ -33,17 +33,14 @@ export default function MeditationScreen() {
     <Screen contentStyle={styles.content}>
       <Card variant="tint" style={styles.introCard}>
         <Text style={[styles.introTitle, { color: theme.heading }]}>
-          Gentle Seated & Rest Meditation
+          A moment of calm
         </Text>
         <Text style={[styles.introBody, { color: theme.text }]}>
-          Relax comfortably in your favorite chair or resting spot. These gentle sessions feature
-          slow, natural breathing, soft nature soundscapes, and quiet mindfulness designed for older
-          adults. Camera posture guidance is available if you wish, or you can simply close your
-          eyes and listen.
+          Choose a short guided session. Sit comfortably, listen, and breathe at your own pace. Camera guidance is optional.
         </Text>
       </Card>
 
-      <SectionHeader accent title="Seated & Rest Meditations (2–5 Min)" />
+      <SectionHeader accent title="Seated meditation" />
       {seniorSessions.map((session) => (
         <ActivityCard
           key={session.id}
@@ -54,7 +51,7 @@ export default function MeditationScreen() {
         />
       ))}
 
-      <SectionHeader accent title="More Practices" />
+      <SectionHeader accent title="More sessions" />
       {otherSessions.map((session) => (
         <ActivityCard
           key={session.id}
