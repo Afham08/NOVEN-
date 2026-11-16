@@ -79,7 +79,7 @@ export default function ProgressScreen() {
         variant="surface"
         emphasis="sage"
         score={summary?.latest?.score}
-        label="Progress score"
+        label="Rep range similarity"
         hint={progressHint(summary, totalSessions)}
       />
 

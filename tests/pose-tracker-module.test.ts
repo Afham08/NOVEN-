@@ -161,7 +161,7 @@ export function run(): void {
       'the native view emits only one failure and stops forwarding pose events afterward',
       /failureEventEmitted\.compareAndSet\(false, true\)/.test(view) &&
         /Events\("onFrame", "onPoseFrame", "onError"\)/.test(module) &&
-        /!failureEventEmitted\.get\(\)\)\s*onPoseFrame/.test(view),
+        /!failureEventEmitted\.get\(\)\)\s*\{\s*poseFrameCount\.incrementAndGet\(\)\s*onPoseFrame\(poseFrame\)/.test(view),
     );
     check(
       'camera permission, startup, and runtime errors use distinct categories',

@@ -1,6 +1,6 @@
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { PermissionsAndroid, Platform, StyleSheet, Text, View } from 'react-native';
+import { AppState, Linking, PermissionsAndroid, Platform, StyleSheet, Text, View, useWindowDimensions } from 'react-native';
 
 import {
   PoseTrackerView,
@@ -13,9 +13,9 @@ import { SessionTimer } from '@/components/session/session-timer';
 import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
 import { Header } from '@/components/ui/header';
-import { Spacing, Type } from '@/constants/theme';
+import { Radius, Spacing, Type } from '@/constants/theme';
 import { getExerciseById } from '@/data/exercises';
-import { completedFeedback, pausedFeedback, setupFeedback, type FeedbackCue } from '@/exercise/feedback';
+import { completedFeedback, movementWording, pausedFeedback, setupFeedback, type FeedbackCue } from '@/exercise/feedback';
 import { buildSessionMetrics, formatConsistencyLabel, formatDurationLabel, formatPaceLabel, formatRangeLabel } from '@/exercise/metrics';
 import { getExerciseConfig } from '@/exercise/pose-configs';
 import { createSessionId, createSessionRecord } from '@/exercise/session-store';
@@ -36,7 +36,14 @@ type HudState = {
   feedback: FeedbackCue;
 };
 
-export default function SessionScreen() {
+export default function ExerciseSessionRoute() {
+  const [attempt, setAttempt] = useState(0);
+  return <SessionScreen key={attempt} onRetry={() => setAttempt((value) => value + 1)} />;
+}
+
+function SessionScreen({ onRetry }: { onRetry: () => void }) {
+  const { width } = useWindowDimensions();
+  const desktop = Platform.OS === 'web' && width >= 1000;
   const { id } = useLocalSearchParams<{ id?: string }>();
   const router = useRouter();
   const exercise = getExerciseById(id);
@@ -45,6 +52,7 @@ export default function SessionScreen() {
   const [seconds, setSeconds] = useState(0);
   const [phase, setPhase] = useState<SessionPhase>('ready');
   const [hasCameraPermission, setHasCameraPermission] = useState<boolean | null>(null);
+  const [cameraStarted, setCameraStarted] = useState(false);
   const [trackingFailure, setTrackingFailure] = useState<PoseTrackerFailure | null>(null);
   const [hud, setHud] = useState<HudState>({
     reps: 0,
@@ -54,7 +62,6 @@ export default function SessionScreen() {
   // 3 Sets x 10 Reps Tracking State
   const [currentSet, setCurrentSet] = useState(1);
   const [repsInSet, setRepsInSet] = useState(0);
-  const [, setTotalReps] = useState(0);
   const [showRepPopup, setShowRepPopup] = useState(false);
   const [isSetResting, setIsSetResting] = useState(false);
   const [isWorkoutComplete, setIsWorkoutComplete] = useState(false);
@@ -101,7 +108,7 @@ export default function SessionScreen() {
    * what gives "constructed exactly once" without touching a ref during render.
    */
   const [engine] = useState<SessionEngine | null>(() =>
-    config === undefined ? null : new SessionEngine(config),
+    config === undefined ? null : new SessionEngine({ ...config, thresholds: { ...config.thresholds, minExtendedHoldMs: 3000 } }),
   );
   const [failureGate] = useState(() => new PoseTrackerFailureGate());
 
@@ -189,7 +196,7 @@ export default function SessionScreen() {
         PermissionsAndroid.PERMISSIONS.CAMERA,
         {
           title: 'Camera access',
-          message: 'NOVEN uses the camera to track your movement during the session.',
+          message: 'OSMIUM uses the camera to track your movement during the session.',
           buttonNeutral: 'Ask Me Later',
           buttonNegative: 'Cancel',
           buttonPositive: 'OK',
@@ -204,6 +211,14 @@ export default function SessionScreen() {
   useEffect(() => {
     const timer = setTimeout(requestCameraPermission, 0);
     return () => clearTimeout(timer);
+  }, [requestCameraPermission]);
+
+  useEffect(() => {
+    if (Platform.OS !== 'android') return;
+    const subscription = AppState.addEventListener('change', (state) => {
+      if (state === 'active' && phaseRef.current === 'ready') void requestCameraPermission();
+    });
+    return () => subscription.remove();
   }, [requestCameraPermission]);
 
   const updateHud = useCallback((next: { reps: number; feedback: FeedbackCue }) => {
@@ -222,7 +237,7 @@ export default function SessionScreen() {
    * a device to confirm the native dispatcher tolerates it). This is the only
    * reason `onFrame` exists here.
    */
-  const handleFrame = useCallback(() => {}, []);
+  const handleFrame = useCallback(() => setCameraStarted(true), []);
 
   const triggerRepCelebration = useCallback(() => {
     setShowRepPopup(true);
@@ -232,27 +247,7 @@ export default function SessionScreen() {
     }, 1800);
 
 
-    setRepsInSet((prev) => {
-      const nextReps = prev + 1;
-      if (nextReps >= 10) {
-        setCurrentSet((setNum) => {
-          if (setNum >= 3) {
-            setIsWorkoutComplete(true);
-            if (engine) updateHud(engine.pause());
-            goToPhase('paused');
-          } else {
-            setIsSetResting(true);
-            if (engine) updateHud(engine.pause());
-            goToPhase('paused');
-          }
-          return setNum;
-        });
-        return 10;
-      }
-      return nextReps;
-    });
-    setTotalReps((prev) => prev + 1);
-  }, [engine, goToPhase, updateHud]);
+  }, []);
 
   const startNextSet = useCallback(() => {
     setIsSetResting(false);
@@ -287,9 +282,9 @@ export default function SessionScreen() {
       // Hold countdown tracking (3-second hold then prompt release)
       if (result.feedback.kind === 'hold') {
         if (holdStartTimeRef.current === null) {
-          holdStartTimeRef.current = Date.now();
+          holdStartTimeRef.current = event.nativeEvent.timestampMs;
         }
-        const elapsed = (Date.now() - holdStartTimeRef.current) / 1000;
+        const elapsed = Math.max(0, (event.nativeEvent.timestampMs - holdStartTimeRef.current) / 1000);
         setHoldDuration(elapsed);
       } else if (result.feedback.kind !== 'return') {
         holdStartTimeRef.current = null;
@@ -302,9 +297,19 @@ export default function SessionScreen() {
         holdStartTimeRef.current = null;
         setHoldDuration(0);
         triggerRepCelebration();
+        const completedReps = result.reps;
+        const completedSet = completedReps > 0 && completedReps % 10 === 0;
+        setCurrentSet(completedSet ? Math.min(3, completedReps / 10) : Math.min(3, Math.floor(completedReps / 10) + 1));
+        setRepsInSet(completedSet ? 10 : completedReps % 10);
+        if (completedSet) {
+          if (completedReps >= 30) setIsWorkoutComplete(true);
+          else setIsSetResting(true);
+          updateHud(engine.pause());
+          goToPhase('paused');
+        }
       }
     },
-    [engine, updateHud, triggerRepCelebration],
+    [engine, updateHud, triggerRepCelebration, goToPhase],
   );
 
   const handleTrackerError = useCallback(
@@ -344,10 +349,11 @@ export default function SessionScreen() {
     // the new session is not swallowed by a cooldown.
     voiceRef.current?.reset();
     setSeconds(0);
+    holdStartTimeRef.current = null;
+    setHoldDuration(0);
     setHud({ reps: 0, feedback: setupFeedback() });
     setCurrentSet(1);
     setRepsInSet(0);
-    setTotalReps(0);
     setIsSetResting(false);
     setIsWorkoutComplete(false);
     lastRepsRef.current = 0;
@@ -356,6 +362,8 @@ export default function SessionScreen() {
   };
 
   const pause = () => {
+    holdStartTimeRef.current = null;
+    setHoldDuration(0);
     // Freeze the in-progress rep cycle so the movement that caused the pause
     // cannot be completed by the frames that follow it. Counted reps survive.
     // The engine also drops its clock anchor here, so the paused gap can never
@@ -446,7 +454,15 @@ export default function SessionScreen() {
         ? pausedFeedback().text
         : phase === 'tracking-error'
           ? 'Pose tracking stopped.'
-          : hud.feedback.text;
+          : hud.feedback.kind === 'hold'
+            ? holdDuration >= 3 ? movementWording(config?.id).return : `Hold this position for ${Math.max(1, Math.ceil(3 - holdDuration))} seconds`
+            : hud.feedback.kind === 'short-hold'
+              ? hud.feedback.text
+              : hud.feedback.kind === 'positioning'
+              ? id === 'sit-to-stand' ? 'Sit where your knees and ankles are visible' : id === 'seated-arm-raise' ? 'Sit with your arms down and shoulders visible' : 'Sit with your leg and foot visible'
+              : hud.feedback.kind === 'ready' && phase === 'running'
+                ? movementWording(config?.id).extend
+                : hud.feedback.text;
 
   const actionGuide = (() => {
     if (phase === 'paused') return 'PAUSED';
@@ -465,16 +481,26 @@ export default function SessionScreen() {
         return 'GREAT JOB!';
       case 'stabilizing':
         return 'HOLD STILL';
-      case 'position':
+      case 'short-hold':
+        return 'HOLD LONGER';
       case 'positioning':
+        return 'CHECK POSITION';
+      case 'position':
         return 'STEP INTO FRAME';
+      case 'ready':
+        return 'MOVE SLOWLY';
       default:
         return 'STEADY PACE';
     }
   })();
 
    return (
-    <Screen contentStyle={styles.content}>
+    <Screen contentStyle={[styles.content, desktop && styles.desktopContent]} onBack={() => {
+      if (phaseRef.current === 'running' || phaseRef.current === 'paused') end();
+      else if (phaseRef.current === 'completed') leaveSession();
+      else if (phaseRef.current === 'tracking-error') exitFailedSession();
+      else router.back();
+    }}>
       <Text
         accessibilityLabel={`${exercise.name}, ${chipLabel}`}
                 style={[styles.exerciseName, { color: theme.heading }]}>
@@ -483,8 +509,8 @@ export default function SessionScreen() {
 
       {/* Massive Green +1 REP! Popup (Visible from across the room) */}
       {showRepPopup && (
-        <View style={[styles.repPopup, { backgroundColor: theme.success, shadowColor: theme.success }]}>
-          <Text style={styles.repPopupText}>+1 REP!</Text>
+        <View style={[styles.repPopup, { backgroundColor: theme.glass, borderColor: theme.glassBorder, shadowColor: theme.success }]}>
+          <Text style={[styles.repPopupText, { color: theme.success }]}>+1 REP!</Text>
         </View>
       )}
 
@@ -495,8 +521,17 @@ export default function SessionScreen() {
         then phase and clock, then guidance, then the controls. Nothing overlays
         the preview, and the tracker keeps its own full-width 1:1 frame.
       */}
+      <View style={desktop ? styles.desktopStage : undefined}>
+      {desktop && (
+        <Card variant="surface" padding="medium" style={styles.sidePanel}>
+          <SessionTimer seconds={seconds} phase={phase} suggestedSeconds={exercise.durationSeconds} />
+          <Text style={[styles.metricLabel, { color: theme.textSecondary }]}>Set {currentSet} of 3</Text>
+          <Text style={[styles.metricValue, { color: theme.heading }]}>{repsInSet} / 10</Text>
+          <Text style={[styles.metricLabel, { color: theme.textSecondary }]}>Reps</Text>
+        </Card>
+      )}
       {hasCameraPermission ? (
-        <View style={[styles.cameraFrame, { backgroundColor: theme.cameraSurface, borderColor: theme.glassBorder, shadowColor: theme.shadow }]}>
+        <View style={[styles.cameraFrame, desktop && styles.desktopCamera, { backgroundColor: theme.cameraSurface, borderColor: theme.glassBorder, shadowColor: theme.shadow }]}>
           {/*
             The tracker is unmounted once the session is over. The result screen
             is PUSHED, so this screen stays mounted behind it — and the native
@@ -514,12 +549,31 @@ export default function SessionScreen() {
               onError={handleTrackerError}
             />
           )}
+          {phase === 'tracking-error' && <View style={styles.cameraUnavailable}><Text style={styles.cameraUnavailableText}>Camera unavailable</Text></View>}
         </View>
       ) : (
-        <CameraPlaceholder />
+        <CameraPlaceholder pending={hasCameraPermission === null} />
       )}
+      {desktop && (
+        <View style={styles.desktopRightColumn}>
+        <Card variant="surface" padding="medium" style={styles.sidePanel}>
+          <Text style={[styles.metricLabel, { color: theme.textSecondary }]}>Guidance</Text>
+          <Text accessibilityLiveRegion="polite" style={[styles.desktopCue, { color: phase === 'running' && hud.feedback.kind === 'hold' && holdDuration < 3 ? theme.danger : phase === 'running' && (hud.feedback.kind === 'return' || hud.feedback.kind === 'good' || (hud.feedback.kind === 'hold' && holdDuration >= 3)) ? theme.success : theme.heading }]}>{phase === 'tracking-error' ? 'Camera stopped' : phase === 'ready' ? 'Get ready' : actionGuide}</Text>
+          <Text style={[styles.instructionStep, { color: theme.textSecondary }]}>{instructionText}</Text>
+        </Card>
+        <View style={styles.desktopActions}>
+          <Button variant="outline" title={voiceEnabled ? 'Voice on' : 'Voice off'} onPress={toggleVoice} style={styles.desktopButton} />
+          <View style={[styles.trackingChip, styles.desktopTrackingChip, { backgroundColor: theme.glass, borderColor: theme.glassBorder }]}><Text style={[styles.trackingChipText, { color: theme.textSecondary }]}>Camera tracking</Text></View>
+          {phase === 'ready' && hasCameraPermission && cameraStarted ? <Button variant="ink" title="Start" onPress={start} style={styles.desktopButton} /> : null}
+          {phase === 'running' || (phase === 'paused' && !isSetResting && !isWorkoutComplete) ? <View style={styles.desktopControlStack}><Button variant="ink" title={phase === 'paused' ? 'Resume' : 'Pause'} onPress={phase === 'paused' ? resume : pause} style={styles.desktopButton} /><Button variant="outline" title="End" onPress={end} style={styles.desktopButton} /></View> : null}
+          {(isSetResting || isWorkoutComplete) && <Button variant="outline" title="End" onPress={end} style={styles.desktopButton} />}
+          {phase === 'completed' && <Button variant="primary" title="Done" onPress={leaveSession} style={styles.desktopButton} />}
+        </View>
+        </View>
+      )}
+      </View>
 
-      <View style={styles.sessionTools}>
+      {!desktop && <View style={styles.sessionTools}>
         <Button
           variant="outline"
           size="medium"
@@ -531,7 +585,7 @@ export default function SessionScreen() {
         <View style={[styles.trackingChip, { backgroundColor: theme.glass, borderColor: theme.glassBorder }]}>
           <Text style={[styles.trackingChipText, { color: theme.textSecondary }]}>Camera tracking</Text>
         </View>
-      </View>
+      </View>}
 
       {phase === 'tracking-error' && trackingFailure ? (
         <Card
@@ -545,12 +599,22 @@ export default function SessionScreen() {
             style={[styles.instructionStep, { color: theme.danger }]}>
             {trackingFailure.message} No session record will be saved.
           </Text>
+          {Platform.OS === 'web' && <Text style={[styles.instructionStep, { color: theme.text }]}>Use the camera icon beside your browser’s address bar to allow access. If another app is using the camera, close it, then retry.</Text>}
+          <Button variant="primary" title="Retry camera" onPress={onRetry} />
           <Button variant="primary" title="Return to exercises" onPress={exitFailedSession} />
         </Card>
       ) : null}
 
       {phase === 'ready' && hasCameraPermission === false ? (
-        <Button variant="outline" title="Back to exercises" onPress={exitFailedSession} />
+        <View style={styles.permissionActions}>
+          <Button variant="primary" title="Try camera again" onPress={() => void requestCameraPermission()} />
+          {Platform.OS === 'android' ? <Button variant="outline" title="Open camera settings" onPress={() => void Linking.openSettings()} /> : null}
+          <Button variant="outline" title="Back to exercises" onPress={exitFailedSession} />
+        </View>
+      ) : null}
+
+      {phase === 'ready' && hasCameraPermission && !cameraStarted ? (
+        <Text style={[styles.cameraStatus, { color: theme.textSecondary }]}>Preparing camera…</Text>
       ) : null}
 
       {/* Set Rest Card (after completing 10 reps in a set) */}
@@ -590,7 +654,7 @@ export default function SessionScreen() {
         banner when paused or complete, the running rep count plus the engine's
         own instruction while exercising, and the setup line before Start.
       */}
-      {phase !== 'ready' && (
+      {!desktop && phase !== 'ready' && phase !== 'tracking-error' && (
         <Card variant="surface" padding="medium" style={styles.infoBar}>
           <View style={styles.infoBarLeft}>
             <SessionTimer
@@ -607,7 +671,7 @@ export default function SessionScreen() {
       )}
 
       {/* Primary Guidance & Visual Metrics: Big, minimal, visual */}
-      {phase !== 'ready' && !isSetResting && !isWorkoutComplete && (
+      {!desktop && phase !== 'ready' && phase !== 'tracking-error' && !isSetResting && !isWorkoutComplete && (
         <View style={styles.guidance}>
           <View
             style={[
@@ -617,7 +681,7 @@ export default function SessionScreen() {
                   hud.feedback.kind === 'hold'
                     ? holdDuration >= 3
                       ? theme.success
-                      : theme.warning
+                      : theme.danger
                     : hud.feedback.kind === 'return' || hud.feedback.kind === 'good'
                       ? theme.success
                       : theme.accent,
@@ -663,7 +727,7 @@ export default function SessionScreen() {
         by pressing Back — it therefore needs its own way out, mirroring the
         result screen's Done button, instead of being a dead end.
       */}
-      {phase === 'completed' ? (
+      {!desktop && (phase === 'completed' ? (
         <Button variant="primary" title="Done" onPress={leaveSession} />
       ) : phase === 'tracking-error' ? null : phase === 'ready' ? (
         // Start is only offered once the camera is actually available. Without
@@ -671,11 +735,13 @@ export default function SessionScreen() {
         // reps and report success for a workout that was never tracked. While
         // permission is pending or denied the CameraPlaceholder above already
         // explains what is needed.
-        hasCameraPermission ? (
+        hasCameraPermission && cameraStarted ? (
           <View style={styles.startButtonWrapper}>
             <Button variant="ink" title="Start" onPress={start} />
           </View>
         ) : null
+      ) : isSetResting || isWorkoutComplete ? (
+        <Button variant="outline" title="End" onPress={end} />
       ) : (
         <View style={styles.controlsRow}>
           <Button
@@ -693,12 +759,24 @@ export default function SessionScreen() {
             style={styles.controlButton}
           />
         </View>
-      )}
+      ))}
     </Screen>
   );
 }
 
 const styles = StyleSheet.create({
+  desktopContent: { maxWidth: 1360, paddingHorizontal: 32 },
+  desktopStage: { flexDirection: 'row', alignItems: 'flex-start', gap: 24, width: '100%' },
+  desktopCamera: { flex: 1, width: undefined, aspectRatio: 4 / 3, borderRadius: Radius.card },
+  desktopRightColumn: { width: 260, gap: 14 },
+  desktopActions: { gap: 10 },
+  desktopControlStack: { gap: 10, width: '100%' },
+  desktopButton: { borderRadius: Radius.card, width: '100%' },
+  desktopTrackingChip: { borderRadius: Radius.card, width: '100%', flex: 0 },
+  sidePanel: { width: 260, gap: 18, borderRadius: Radius.card },
+  desktopCue: { ...Type.heading, fontSize: 26, lineHeight: 32 },
+  cameraUnavailable: { flex: 1, alignItems: 'center', justifyContent: 'center' },
+  cameraUnavailableText: { ...Type.label, color: '#FFFFFF', fontSize: 20 },
   content: {
     // paddingTop only: paddingVertical here would overwrite Screen's own bottom
     // inset (see Screen), and the controls must never sit under Android's
@@ -731,6 +809,15 @@ const styles = StyleSheet.create({
   },
   startButtonWrapper: {
     width: '100%',
+  },
+  permissionActions: {
+    width: '100%',
+    gap: Spacing.two,
+  },
+  cameraStatus: {
+    ...Type.label,
+    textAlign: 'center',
+    fontSize: 16,
   },
   chipRow: {
     flexDirection: 'row',
@@ -797,12 +884,13 @@ const styles = StyleSheet.create({
     right: '10%',
     paddingVertical: 18,
     borderRadius: 28,
+    borderWidth: 1,
     alignItems: 'center',
     justifyContent: 'center',
     shadowOffset: { width: 0, height: 8 },
-    shadowOpacity: 0.6,
-    shadowRadius: 20,
-    elevation: 15,
+    shadowOpacity: 0.18,
+    shadowRadius: 24,
+    elevation: 8,
     zIndex: 999,
   },
   repPopupText: {

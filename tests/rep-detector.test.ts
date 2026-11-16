@@ -28,6 +28,28 @@ function cleanRep(t0: number): RepFrame[] {
 }
 
 export function run(): void {
+  suite('rep-detector timed hold', () => {
+    const timed = { ...THRESHOLDS, minExtendedHoldMs: 3000 };
+    const early = new RepDetector(timed);
+    for (const frame of cleanRep(1000)) early.process(frame);
+    check('an early return is not counted', early.completedReps === 0);
+
+    const held = new RepDetector(timed);
+    const frames = [
+      { angle: BENT, timestampMs: 1000 },
+      { angle: 150, timestampMs: 1100 },
+      { angle: EXTENDED, timestampMs: 1200 },
+      { angle: EXTENDED, timestampMs: 1300 },
+      ...Array.from({ length: 30 }, (_, index) => ({ angle: EXTENDED, timestampMs: 1400 + index * 100 })),
+      { angle: 130, timestampMs: 4400 },
+      { angle: 120, timestampMs: 4500 },
+      { angle: BENT, timestampMs: 4600 },
+      { angle: BENT, timestampMs: 4700 },
+    ];
+    for (const frame of frames) held.process(frame);
+    check('a complete three-second hold and return count once', held.completedReps === 1);
+  });
+
   suite('rep-detector baseline', () => {
     const detector = new RepDetector(THRESHOLDS);
     check('starts at rest and zero reps', detector.currentPhase === 'rest' && detector.completedReps === 0);

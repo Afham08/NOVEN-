@@ -118,7 +118,7 @@ export default function ExerciseDetailScreen() {
       ) : (
         <Card variant="surface" gap={Spacing.two}>
           <Text style={[styles.safetyText, { color: theme.text }]}>
-            NOVEN cannot watch this one, so it will not count anything. Read the steps
+            OSMIUM cannot watch this one, so it will not count anything. Read the steps
             above and take your time with them.
           </Text>
         </Card>

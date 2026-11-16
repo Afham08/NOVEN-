@@ -261,11 +261,11 @@ export function progressHint(
     if (summary.guidedInWindow > 0) {
       return summary.sessionsInWindow === summary.guidedInWindow
         ? 'Your last 30 days were yoga, meditation or wellness. Those are not measured by the camera.'
-        : 'An exercise with the camera would add a score here.';
+        : 'An exercise with the camera would add a range comparison here.';
     }
     return 'Sessions this month were too short to measure.';
   }
   const latest = summary.latest;
-  if (latest === null) return 'Your steadiness over the last 30 days.';
-  return `Steadiness of your latest session, out of ${PROGRESS_MAX}.`;
+  if (latest === null) return 'Similarity of your completed rep ranges.';
+  return 'Similarity of movement range in your latest session.';
 }

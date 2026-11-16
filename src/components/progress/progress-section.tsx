@@ -119,7 +119,7 @@ export function ProgressSection({ summary, totalSessions, records = null }: Prog
         {body()}
       </Card>
       <Text style={[styles.disclaimer, { color: theme.textSecondary }]}>
-        Steady score, from your own sessions. Not a medical measurement.
+        Similarity of completed rep ranges. This does not rate your form.
       </Text>
 
       <HistoryRecap records={records} />

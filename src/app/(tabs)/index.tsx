@@ -6,7 +6,7 @@ import { BlurTargetView } from 'expo-blur';
 import { useRouter } from 'expo-router';
 import { SymbolView } from 'expo-symbols';
 import { useRef } from 'react';
-import { Platform, Pressable, ScrollView, StyleSheet, Text, useWindowDimensions, View } from 'react-native';
+import { Image, Platform, Pressable, ScrollView, StyleSheet, Text, useWindowDimensions, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { HomeActivity } from '@/components/home/home-activity';
 import { HomeBackground } from '@/components/home/home-background';
@@ -43,10 +43,11 @@ export default function HomeScreen() {
             <SymbolView name={{ ios: 'gearshape', android: 'settings', web: 'settings' }} size={24} tintColor={theme.text} />
           </Pressable>
         </View>
+        <Image source={require('../../../assets/design/osmium-logo.png')} resizeMode="contain" style={[styles.brandLogo, { tintColor: theme.heading }]} accessibilityLabel="OSMIUM logo" />
         <Text accessibilityRole="header" style={[styles.wordmark,
-          { color: theme.heading, fontFamily: kn ? Fonts.sans : 'ManropeDisplay',
+          { color: theme.heading, fontFamily: 'Georgia',
             fontSize: wide ? 104 : 64, lineHeight: wide ? 112 : 74,
-            letterSpacing: kn ? 0 : wide ? -3.6 : -2 }]}>{t('appName')}</Text>
+            letterSpacing: wide ? 0.4 : 0.2 }]}>{t('appName')}</Text>
         <View style={[styles.sectionHeading, wide && { marginTop: 22 }]}>
           <Text style={[styles.sectionLabel, { fontFamily: activityFont, color: theme.text }]}>{kn ? 'ಚಟುವಟಿಕೆಗಳು' : 'Activities'}</Text>
           <Pressable accessibilityRole="button" onPress={() => router.push('/activities')} style={styles.allActivities}>
@@ -71,6 +72,7 @@ const styles = StyleSheet.create({
   content: { width: '100%', maxWidth: 1120, alignSelf: 'center', paddingHorizontal: 20 },
   tools: { flexDirection: 'row', justifyContent: 'flex-end', gap: 10 },
   wordmark: { textAlign: 'center', marginTop: -2 },
+  brandLogo: { width: 72, height: 72, alignSelf: 'center', marginTop: 2 },
   settings: { width: 50, height: 50, borderRadius: 25, borderWidth: 1, borderColor: '#FFFFFFAA',
     backgroundColor: '#FFFFFF80', justifyContent: 'center', alignItems: 'center' },
   sectionHeading: { marginTop: 18, marginBottom: 12, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 16 },

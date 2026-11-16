@@ -64,6 +64,7 @@ class PoseTrackerView(
     scaleType = PreviewView.ScaleType.FILL_CENTER
   }
   private val frameCount = AtomicLong(0)
+  private val poseFrameCount = AtomicLong(0)
   private val lastEmitAt = AtomicLong(0)
   private val analysisExecutor = Executors.newSingleThreadExecutor { runnable ->
     Thread(runnable, "pose-tracker-analysis").apply {
@@ -91,9 +92,12 @@ class PoseTrackerView(
   private val poseTrackerProcessor = PoseTrackerProcessor(
     context,
     onPoseFrame = { poseFrame ->
-      if (!disposed.get() && !failureEventEmitted.get()) onPoseFrame(poseFrame)
+      if (!disposed.get() && !failureEventEmitted.get()) {
+        poseFrameCount.incrementAndGet()
+        onPoseFrame(poseFrame)
+      }
     },
-    onFatalError = ::reportFailure
+    onFatalError = { error -> reportFailure(error.category, error.message) }
   )
 
   private val scope = CoroutineScope(
@@ -115,11 +119,7 @@ class PoseTrackerView(
         ViewGroup.LayoutParams.MATCH_PARENT
       )
     )
-    // MediaPipe must be initialized and used on the same thread when the GPU
-    // delegate is requested, so initialize on the analysis executor.
-    analysisExecutor.execute {
-      poseTrackerProcessor.initialize()
-    }
+    // MediaPipe initializes on the analysis thread after the first frame.
     startCamera()
   }
 
@@ -346,6 +346,18 @@ class PoseTrackerView(
             logPreviewViewChildren("after-requestLayout-500ms")
           }, 500)
         }, 3000)
+        previewView.postDelayed({
+          if (!disposed.get() && !failureEventEmitted.get() && frameCount.get() == 0L) {
+            Log.e(TAG, "Camera startup timed out: open=${cameraHasOpened.get()}, preview=${previewView.width}x${previewView.height}")
+            reportFailure("camera-startup", "The camera did not produce a picture. Return to exercises and reopen the session.")
+          }
+        }, 12000)
+        previewView.postDelayed({
+          if (!disposed.get() && !failureEventEmitted.get() && frameCount.get() > 0L && poseFrameCount.get() == 0L) {
+            Log.e(TAG, "Pose startup timed out after camera frames arrived.")
+            reportFailure("pose-initialization", "Pose tracking did not start. Return to exercises and reopen the session.")
+          }
+        }, 20000)
       } catch (e: Exception) {
         Log.e(TAG, "Failed to start camera: ${e.message ?: e.javaClass.simpleName}", e)
         reportFailure(

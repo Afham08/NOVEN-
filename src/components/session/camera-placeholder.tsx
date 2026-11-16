@@ -17,7 +17,7 @@ import { useTheme } from '@/hooks/use-theme';
  * meditation that carries on regardless — so an optional camera must not imply
  * the session is blocked.
  */
-export function CameraPlaceholder({ optional = false }: { optional?: boolean }) {
+export function CameraPlaceholder({ optional = false, pending = false }: { optional?: boolean; pending?: boolean }) {
   const theme = useTheme();
   const frameBackground = optional ? theme.backgroundElement : theme.warningSoft;
   const frameBorder = optional ? theme.border : theme.warning;
@@ -32,11 +32,13 @@ export function CameraPlaceholder({ optional = false }: { optional?: boolean }) 
           size={40}
           tintColor={optional ? theme.accentSecondary : theme.warning}
         />
-        <Text style={[styles.title, { color: titleColor }]}>Camera unavailable</Text>
+        <Text style={[styles.title, { color: titleColor }]}>{pending ? 'Preparing camera' : 'Camera unavailable'}</Text>
         <Text style={[styles.subtitle, { color: subtitleColor }]}>
-          {optional
+          {pending
+            ? 'Allow camera access when your phone asks.'
+            : optional
             ? 'You can carry on without the camera. Allow camera access in Settings if you would like a posture reminder.'
-            : 'Camera access is needed to track your movement. Allow it in Settings, then reopen this session.'}
+            : 'Camera access is needed to track your movement. Allow it in Settings, then try again.'}
         </Text>
       </View>
     </View>

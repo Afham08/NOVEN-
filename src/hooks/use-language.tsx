@@ -5,7 +5,7 @@ export type Language = 'en' | 'kn';
 
 export const TRANSLATIONS = {
   en: {
-    appName: 'NOVEN',
+    appName: 'OSMIUM',
     welcomeHome: 'Welcome Home',
     exercise: 'Exercise',
     yoga: 'Yoga',
@@ -42,7 +42,7 @@ export const TRANSLATIONS = {
     reps: 'REPS',
   },
   kn: {
-    appName: 'ನೋವೆನ್',
+    appName: 'OSMIUM',
     welcomeHome: 'ಸುಸ್ವಾಗತ',
     exercise: 'ವ್ಯಾಯಾಮ',
     yoga: 'ಯೋಗ',

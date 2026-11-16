@@ -148,7 +148,7 @@ function RootNavigator() {
         <Stack.Screen name="settings/appearance" options={{ title: 'Appearance' }} />
         <Stack.Screen name="settings/notifications" options={{ title: 'Notifications' }} />
         <Stack.Screen name="settings/privacy" options={{ title: 'Privacy & Safety' }} />
-        <Stack.Screen name="settings/about" options={{ title: 'About NOVEN' }} />
+        <Stack.Screen name="settings/about" options={{ title: 'About OSMIUM' }} />
 
         {/* The exercise flow, unchanged. */}
         <Stack.Screen name="exercise/[id]" options={{ headerShown: false }} />

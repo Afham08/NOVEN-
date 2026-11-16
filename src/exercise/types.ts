@@ -25,6 +25,8 @@ export type RepThresholds = {
   minRepIntervalMs: number;
   /** Consecutive qualifying frames required to confirm the extended phase. */
   holdFrames: number;
+  /** Minimum continuous time at the extended position before release may count. */
+  minExtendedHoldMs?: number;
   /** Minimum landmark visibility (0..1) to accept a frame. */
   minVisibility: number;
   /**
@@ -132,6 +134,8 @@ export type RepFrame = {
 /** What a rep detector returns for a single processed frame. */
 export type RepOutcome = {
   repCompleted: boolean;
+  /** The person started returning before the configured hold finished. */
+  shortHold?: boolean;
   /** Observed min/max range (deg) across the completed cycle, if any. */
   repRange: number | null;
   phase: RepPhase;

@@ -591,7 +591,7 @@ export function run(): void {
     check('the time row is labelled "Time"', strings.includes('Time'));
     check('the pace row is labelled in plain language', strings.includes('Movement pace'));
     check('the range row is labelled in plain language', strings.includes('Movement range'));
-    check('the consistency row is labelled in plain language', strings.includes('Movement consistency'));
+    check('the range comparison row is labelled honestly', strings.includes('Rep range similarity'));
     check('the screen leads with a session-complete heading', strings.includes('Session Complete'));
     check('the primary action is still "Done"', strings.includes('Done'));
     // The exercise-specific anatomical label is gone from the visible rows.

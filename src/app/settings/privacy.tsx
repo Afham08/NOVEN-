@@ -87,7 +87,7 @@ export default function PrivacySafetyScreen() {
         <InfoRow label="Microphone" value="Not used" stacked />
         <InfoRow label="Location" value="Not used" stacked />
         <InfoRow label="Your saved sessions" value="Saved on this phone" stacked />
-        <InfoRow label="NOVEN account" value="Not set up" stacked />
+        <InfoRow label="OSMIUM account" value="Not set up" stacked />
       </Card>
 
       {/*
@@ -98,7 +98,7 @@ export default function PrivacySafetyScreen() {
       */}
       <Card variant="sage" gap={Spacing.two}>
         <Text style={[styles.explain, { color: theme.text }]}>
-          NOVEN asks for camera access only when you start an exercise session,
+          OSMIUM asks for camera access only when you start an exercise session,
           and only to watch the movement. Your saved sessions stay on this phone
           and are not sent anywhere.
         </Text>

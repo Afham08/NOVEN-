@@ -337,7 +337,7 @@ export function run() {
     check('the Progress tab renders real session history', progressTab.includes('<SessionHistory'));
     check('the Progress tab reads the real session store', progressTab.includes('sessionStore'));
     check('the Progress tab reuses the shared progress hook', progressTab.includes('useProgress('));
-    check('the Progress tab shows the progress score card', progressTab.includes('label="Progress score"'));
+    check('the Progress tab labels the measured range comparison', progressTab.includes('label="Rep range similarity"'));
 
     // No second scoring system, anywhere in the tab.
     const code = stripComments(progressTab);

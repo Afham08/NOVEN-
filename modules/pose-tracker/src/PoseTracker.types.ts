@@ -91,6 +91,7 @@ export type PoseFrameEventPayload = {
 };
 
 export type PoseTrackerErrorCategory =
+  | 'unsupported-build'
   | 'camera-permission'
   | 'camera-startup'
   | 'camera-runtime'

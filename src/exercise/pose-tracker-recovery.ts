@@ -10,6 +10,7 @@ export type PoseTrackerFailure = {
 };
 
 const SAFE_FAILURE_MESSAGES: Readonly<Record<PoseTrackerFailureCategory, string>> = {
+  'unsupported-build': 'This build cannot use the exercise camera. Install an OSMIUM development build instead of Expo Go.',
   'camera-permission': 'Camera permission is unavailable. Allow camera access, then reopen the session.',
   'camera-startup': 'The camera could not start. Return to exercises and reopen the session.',
   'camera-runtime': 'The camera stopped unexpectedly. Return to exercises and reopen the session.',

@@ -32,7 +32,7 @@ const SECTIONS = [
   },
   {
     title: 'Language',
-    description: 'The language NOVEN shows you',
+    description: 'The language OSMIUM shows you',
     detail: 'English',
     href: '/settings/language',
   },
@@ -55,7 +55,7 @@ const SECTIONS = [
     href: '/settings/privacy',
   },
   {
-    title: 'About NOVEN',
+    title: 'About OSMIUM',
     description: 'Version and app details',
     detail: 'Details',
     href: '/settings/about',

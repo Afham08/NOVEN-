@@ -90,6 +90,7 @@ const POLICY: Record<FeedbackKind, KindPolicy> = {
   ready: { priority: 'normal', interrupt: false },
   extend: { priority: 'low', interrupt: false },
   hold: { priority: 'low', interrupt: false },
+  'short-hold': { priority: 'low', interrupt: false },
   return: { priority: 'low', interrupt: false },
   good: { priority: 'normal', interrupt: false },
   paused: { priority: 'high', interrupt: true },

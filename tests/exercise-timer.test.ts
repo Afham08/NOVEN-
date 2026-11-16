@@ -383,7 +383,7 @@ export function run(): void {
         /title="Return to exercises"[\s\S]*?onPress=\{exitFailedSession\}/.test(screen),
     );
     check('permission denial retains a distinct placeholder and exit action',
-      screen.includes('<CameraPlaceholder />') && /hasCameraPermission === false[\s\S]*?title="Back to exercises"/.test(screen));
+      screen.includes('<CameraPlaceholder pending={hasCameraPermission === null} />') && /hasCameraPermission === false[\s\S]*?title="Back to exercises"/.test(screen));
     check('the safe exit returns to the exercise library before reopening a session',
       /const exitFailedSession = \(\) => \{[\s\S]*?router\.replace\('\/exercise'\)/.test(screen));
     check('the failed phase has no ordinary End or Pause controls', /phase === 'tracking-error' \? null/.test(screen));

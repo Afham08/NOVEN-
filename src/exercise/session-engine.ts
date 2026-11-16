@@ -1,6 +1,6 @@
 import type { LandmarkEventPayload, PoseFrameEventPayload } from '../../modules/pose-tracker';
 
-import { PositiveFeedbackLatch, pausedFeedback, phaseFeedback, presenceFeedback, priorityPhase, readinessFeedback, setupFeedback, type FeedbackCue } from './feedback';
+import { PositiveFeedbackLatch, pausedFeedback, phaseFeedback, presenceFeedback, priorityPhase, readinessFeedback, setupFeedback, shortHoldFeedback, type FeedbackCue } from './feedback';
 import { isTrustedSide } from './landmark-trust';
 import { angleFromTriplet } from './pose-utils';
 import { RepDetector } from './rep-detector';
@@ -73,6 +73,7 @@ export class SessionEngine {
   /** Previous frame timestamp while readiness remains continuously granted. */
   private activeFrameTimestampMs: number | null = null;
   private lastFeedback: FeedbackCue;
+  private shortHoldUntilMs = 0;
 
   /**
    * The session's authoritative rep tally.
@@ -95,6 +96,7 @@ export class SessionEngine {
     };
     this.gate = new ReadinessGate(requiredJoints(config), config.readiness, requiredAnchor(config));
     this.lastFeedback = setupFeedback();
+    this.shortHoldUntilMs = 0;
   }
 
   get reps(): number {
@@ -139,6 +141,7 @@ export class SessionEngine {
     this.countedRanges = [];
     this.lastCountedAtMs = null;
     this.lastFeedback = setupFeedback();
+    this.shortHoldUntilMs = 0;
   }
 
   /**
@@ -156,6 +159,7 @@ export class SessionEngine {
     this.detectors.right.freeze();
     this.activeFrameTimestampMs = null;
     this.latch.clear();
+    this.shortHoldUntilMs = 0;
     this.lastFeedback = pausedFeedback();
     return {
       reps: this.reps,
@@ -179,6 +183,7 @@ export class SessionEngine {
     this.detectors.left.freeze();
     this.detectors.right.freeze();
     this.latch.clear();
+    this.shortHoldUntilMs = 0;
   }
 
   /**
@@ -201,6 +206,7 @@ export class SessionEngine {
     const right = this.detectors.right;
 
     if (presence !== 'tracked') {
+      this.shortHoldUntilMs = 0;
       // Requirement A/I: the person left. Lose the gate and freeze both
       // detectors, so the partial cycle is discarded and re-entry has to earn
       // readiness again from scratch.
@@ -224,6 +230,7 @@ export class SessionEngine {
     // Evaluated only here (never per frame) because a genuine rep deliberately
     // leaves that regime when the knee extends. See ReadinessConfig.
     if (outcome.becameReady && !this.restingPostureSatisfied(landmarks)) {
+      this.shortHoldUntilMs = 0;
       this.gate.markLost();
       this.activeFrameTimestampMs = null;
       left.freeze();
@@ -234,6 +241,7 @@ export class SessionEngine {
     }
 
     if (this.gate.currentPhase !== 'ready') {
+      this.shortHoldUntilMs = 0;
       this.activeFrameTimestampMs = null;
       left.freeze();
       right.freeze();
@@ -245,6 +253,7 @@ export class SessionEngine {
     this.updateActiveTime(timestampMs);
 
     let repCompletedThisFrame = false;
+    let shortHoldThisFrame = false;
     for (const side of this.config.sides) {
       const angle = angleFromTriplet(
         landmarks,
@@ -261,6 +270,7 @@ export class SessionEngine {
           : { min: Math.min(this.range.min, angle), max: Math.max(this.range.max, angle) };
 
       const outcome = this.detectors[side].process({ angle, timestampMs });
+      if (outcome.shortHold) shortHoldThisFrame = true;
       if (outcome.repCompleted && this.countRep(timestampMs, outcome.repRange)) {
         repCompletedThisFrame = true;
       }
@@ -271,8 +281,10 @@ export class SessionEngine {
     // cannot fabricate a count or an impossible pace.
     const repPhase = priorityPhase(left.currentPhase, right.currentPhase);
     const celebrating = this.latch.observe(repPhase, repCompletedThisFrame);
+    if (shortHoldThisFrame) this.shortHoldUntilMs = timestampMs + 1500;
+    if (repPhase !== 'rest' || repCompletedThisFrame) this.shortHoldUntilMs = 0;
     this.traceReadiness(landmarks, timestampMs, outcome);
-    return this.emit(phaseFeedback(repPhase, celebrating, this.config.id), repCompletedThisFrame);
+    return this.emit(this.shortHoldUntilMs > timestampMs ? shortHoldFeedback() : phaseFeedback(repPhase, celebrating, this.config.id), repCompletedThisFrame);
   }
 
   /**

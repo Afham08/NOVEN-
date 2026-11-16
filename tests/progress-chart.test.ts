@@ -167,8 +167,8 @@ export function run() {
       windowStartDayKey: '2026-08-30',
       windowDays: 30,
     };
-    check('a real score names the real scale', progressHint(scored, 1) === `Steadiness of your latest session, out of ${PROGRESS_MAX}.`, progressHint(scored, 1));
-    check('a scored session alongside guided ones still names the real scale', progressHint({ ...scored, sessionsInWindow: 3, guidedInWindow: 2 }, 3) === `Steadiness of your latest session, out of ${PROGRESS_MAX}.`);
+    check('a measured session explains the range comparison', progressHint(scored, 1) === 'Similarity of movement range in your latest session.', progressHint(scored, 1));
+    check('guided sessions do not change the range explanation', progressHint({ ...scored, sessionsInWindow: 3, guidedInWindow: 2 }, 3) === 'Similarity of movement range in your latest session.');
     check('the hint never promises a clinical claim', !/health|medical|diagnos|risk|rehab/i.test(progressHint(scored, 1)));
   });
 }

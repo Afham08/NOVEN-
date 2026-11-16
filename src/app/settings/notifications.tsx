@@ -31,7 +31,7 @@ export default function NotificationSettingsScreen() {
       */}
       <ComingSoonNote
         title="Reminders are not available yet"
-        message="NOVEN does not send reminders or alerts at the moment."
+        message="OSMIUM does not send reminders or alerts at the moment."
       />
     </Screen>
   );

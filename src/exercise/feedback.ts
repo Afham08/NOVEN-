@@ -39,6 +39,8 @@ export type FeedbackKind =
   | 'extend'
   /** The movement reached the end of its range and is being held. */
   | 'hold'
+  /** Returned before the requested hold was complete. Visual cue only. */
+  | 'short-hold'
   /** The movement is coming back. */
   | 'return'
   /** A rep was just counted (held on screen by the latch below). */
@@ -91,6 +93,10 @@ export function readinessFeedback(phase: ReadinessPhase): FeedbackCue {
 /** Coaching cue shown while the session is paused. */
 export function pausedFeedback(): FeedbackCue {
   return cue('Paused', 'ready', 'paused');
+}
+
+export function shortHoldFeedback(): FeedbackCue {
+  return cue('Hold a little longer before returning', 'accent', 'short-hold');
 }
 
 /**

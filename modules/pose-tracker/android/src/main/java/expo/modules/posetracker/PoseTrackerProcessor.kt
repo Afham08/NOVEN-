@@ -35,6 +35,8 @@ class PoseTrackerProcessor(
   private val onFatalError: (PoseTrackerErrorEvent) -> Unit
 ) {
   private var poseLandmarker: PoseLandmarker? = null
+  private var initialized = false
+  private var lastSubmittedAtMs = 0L
   private var lastTimestampMs = -1L
   private var lastEmitAtMs = 0L
   private var consecutiveSubmitFailures = 0
@@ -42,6 +44,8 @@ class PoseTrackerProcessor(
   private val failureReported = AtomicBoolean(false)
 
   fun initialize() {
+    if (initialized) return
+    initialized = true
     if (closed) {
       Log.w(TAG, "PoseTrackerProcessor is closed; ignoring initialize.")
       return
@@ -89,6 +93,9 @@ class PoseTrackerProcessor(
    * Processes one camera frame. Always closes [imageProxy] regardless of outcome.
    */
   fun processFrame(imageProxy: ImageProxy) {
+    // Initialize after the first camera frame, when the native view is mounted
+    // and its JavaScript error listener is ready to receive failures.
+    if (!initialized) initialize()
     val landmarker = poseLandmarker ?: run {
       imageProxy.close()
       return
@@ -101,6 +108,11 @@ class PoseTrackerProcessor(
 
     // LIVE_STREAM requires strictly increasing timestamps across calls.
     val timestampMs = nextTimestampMs(captureTimestampNs)
+    if (timestampMs - lastSubmittedAtMs < POSE_EMIT_INTERVAL_MS) {
+      imageProxy.close()
+      return
+    }
+    lastSubmittedAtMs = timestampMs
 
     val bitmap = try {
       imageProxy.toRotatedBitmap(rotationDegrees)

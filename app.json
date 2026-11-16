@@ -1,7 +1,7 @@
 {
   "expo": {
-    "name": "NOVEN",
-    "slug": "NOVEN",
+    "name": "OSMIUM",
+    "slug": "osmium",
     "version": "1.0.0",
     "orientation": "portrait",
     "icon": "./assets/images/icon.png",

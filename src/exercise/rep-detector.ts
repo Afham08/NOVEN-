@@ -71,6 +71,7 @@ export class RepDetector {
    * state-machine correction, not a loosened band.
    */
   private extendedHold = 0;
+  private extendedSinceMs: number | null = null;
   private returningHold = 0;
   /**
    * Frames at or below `bentAngleDeg` seen during the CURRENT return, committing
@@ -143,6 +144,7 @@ export class RepDetector {
     this.phase = 'rest';
     this.armed = false;
     this.extendedHold = 0;
+    this.extendedSinceMs = null;
     this.returningHold = 0;
     this.restHold = 0;
     this.cycleMin = null;
@@ -168,6 +170,7 @@ export class RepDetector {
     this.phase = 'rest';
     this.armed = false;
     this.extendedHold = 0;
+    this.extendedSinceMs = null;
     this.returningHold = 0;
     this.restHold = 0;
     this.cycleMin = null;
@@ -182,6 +185,7 @@ export class RepDetector {
    */
   process(frame: RepFrame): RepOutcome {
     const { angle, timestampMs } = frame;
+    let shortHold = false;
     if (!Number.isFinite(angle)) {
       return { repCompleted: false, repRange: null, phase: this.phase };
     }
@@ -235,6 +239,7 @@ export class RepDetector {
           if (this.extendedHold >= holdFrames) {
             this.phase = 'extended';
             this.extendedHold = 0;
+            this.extendedSinceMs = timestampMs;
           }
         } else if (angle <= bentAngleDeg) {
           // Fell back to rest without ever reaching extension: false start.
@@ -249,6 +254,12 @@ export class RepDetector {
       case 'extended':
         if (angle >= extendedAngleDeg - 1) {
           this.returningHold = 0;
+          break;
+        }
+        if (timestampMs - (this.extendedSinceMs ?? timestampMs) < (this.config.minExtendedHoldMs ?? 0)) {
+          this.resetCycle();
+          this.phase = 'rest';
+          shortHold = true;
           break;
         }
         this.returningHold += 1;
@@ -277,7 +288,7 @@ export class RepDetector {
         break;
     }
 
-    return { repCompleted: false, repRange: null, phase: this.phase };
+    return { repCompleted: false, repRange: null, phase: this.phase, shortHold };
   }
 
   private completeRep(timestampMs: number): RepOutcome {
@@ -307,6 +318,7 @@ export class RepDetector {
     this.cycleMin = null;
     this.cycleMax = null;
     this.extendedHold = 0;
+    this.extendedSinceMs = null;
     this.returningHold = 0;
     this.restHold = 0;
   }

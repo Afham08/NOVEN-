@@ -1,6 +1,6 @@
 import { requireNativeView } from 'expo';
 import * as React from 'react';
-import { StyleSheet, Text, UIManager, View } from 'react-native';
+import { StyleSheet, Text, View } from 'react-native';
 import { WebView, type WebViewMessageEvent } from 'react-native-webview';
 
 import {
@@ -8,23 +8,8 @@ import {
 } from './PoseTracker.types';
 import PoseTrackerModule from './PoseTrackerModule';
 
-function isPoseTrackerViewAvailable(): boolean {
-  if (!PoseTrackerModule) {
-    return false;
-  }
-  try {
-    return Boolean(
-      UIManager.getViewManagerConfig?.('ViewManagerAdapter_PoseTracker') ||
-      UIManager.getViewManagerConfig?.('RCTViewManagerAdapter_PoseTracker') ||
-      UIManager.getViewManagerConfig?.('PoseTracker')
-    );
-  } catch {
-    return false;
-  }
-}
-
 let NativeView: React.ComponentType<PoseTrackerViewProps> | null = null;
-if (isPoseTrackerViewAvailable()) {
+if (PoseTrackerModule) {
   try {
     NativeView = requireNativeView('PoseTracker');
   } catch {
@@ -44,7 +29,6 @@ function getMediaPipeHtml(exerciseId: string = 'seated-arm-raise'): string {
     video { position: absolute; top: 0; left: 0; width: 100%; height: 100%; object-fit: cover; transform: scaleX(-1); }
     canvas { position: absolute; top: 0; left: 0; width: 100%; height: 100%; pointer-events: none; }
   </style>
-  <script src="https://unpkg.com/@mediapipe/camera_utils/camera_utils.js" crossorigin="anonymous"></script>
   <script src="https://unpkg.com/@mediapipe/pose@0.5.1675469404/pose.js" crossorigin="anonymous"></script>
 </head>
 <body>
@@ -75,6 +59,12 @@ function getMediaPipeHtml(exerciseId: string = 'seated-arm-raise'): string {
     const video = document.getElementById('v');
     const canvas = document.getElementById('c');
     let poseInstance = null;
+    let stopped = false;
+    function fail(category, message) {
+      if (stopped) return;
+      stopped = true;
+      window.ReactNativeWebView?.postMessage(JSON.stringify({ type: 'error', category, message }));
+    }
 
     function calcAngle(p1, p2, p3) {
       const rad = Math.atan2(p3.y - p2.y, p3.x - p2.x) - Math.atan2(p1.y - p2.y, p1.x - p2.x);
@@ -85,6 +75,10 @@ function getMediaPipeHtml(exerciseId: string = 'seated-arm-raise'): string {
 
     async function init() {
       try {
+        if (!navigator.mediaDevices?.getUserMedia) {
+          fail('unsupported-build', 'Camera API is unavailable in this build');
+          return;
+        }
         let stream;
         try {
           stream = await navigator.mediaDevices.getUserMedia({
@@ -98,17 +92,23 @@ function getMediaPipeHtml(exerciseId: string = 'seated-arm-raise'): string {
         video.setAttribute('webkit-playsinline', 'true');
         video.muted = true;
         await video.play();
+        window.ReactNativeWebView?.postMessage(JSON.stringify({ type: 'camera-ready' }));
 
         setupPose();
       } catch(err) {
-        if (window.ReactNativeWebView) {
-          window.ReactNativeWebView.postMessage(JSON.stringify({ type: 'error', message: err.message }));
-        }
+        const category = err?.name === 'NotAllowedError' || err?.name === 'PermissionDeniedError'
+          ? 'camera-permission' : 'camera-startup';
+        fail(category, err?.message || 'Camera could not start');
       }
     }
 
+    let poseAttempts = 0;
     function setupPose() {
       if (!window.Pose) {
+        if (++poseAttempts >= 50) {
+          fail('pose-initialization', 'Pose model could not load');
+          return;
+        }
         setTimeout(setupPose, 200);
         return;
       }
@@ -125,27 +125,21 @@ function getMediaPipeHtml(exerciseId: string = 'seated-arm-raise'): string {
         });
         poseInstance.onResults(onResults);
 
-        if (window.Camera) {
-          const camera = new window.Camera(video, {
-            onFrame: async () => {
-              if (poseInstance) await poseInstance.send({ image: video });
-            },
-            width: 640,
-            height: 480
-          });
-          camera.start();
-        } else {
-          let busy = false;
-          function loop() {
-            if (video.videoWidth > 0 && !busy && poseInstance) {
-              busy = true;
-              poseInstance.send({ image: video }).catch(() => {}).finally(() => { busy = false; });
-            }
-            requestAnimationFrame(loop);
+        let busy = false;
+        function loop() {
+          if (stopped) return;
+          if (video.videoWidth > 0 && !busy && poseInstance) {
+            busy = true;
+            poseInstance.send({ image: video })
+              .catch((error) => fail('pose-runtime', error?.message || 'Pose tracking stopped'))
+              .finally(() => { busy = false; });
           }
           requestAnimationFrame(loop);
         }
-      } catch(e) {}
+        requestAnimationFrame(loop);
+      } catch(e) {
+        fail('pose-initialization', e?.message || 'Pose tracking could not start');
+      }
     }
 
     function onResults(results) {
@@ -159,15 +153,9 @@ function getMediaPipeHtml(exerciseId: string = 'seated-arm-raise'): string {
       ctx.clearRect(0, 0, width, height);
 
       const raw = results.poseLandmarks;
-      if (!raw || raw.length === 0) return;
-
-      // Ensure hips have anchor coordinates if cut off below portrait frame
-      const shL = raw[11], shR = raw[12];
-      if (shL && (!raw[23] || (raw[23].visibility || 1) < 0.4)) {
-        raw[23] = { x: shL.x, y: Math.min(0.92, shL.y + 0.35), z: 0, visibility: 0.95 };
-      }
-      if (shR && (!raw[24] || (raw[24].visibility || 1) < 0.4)) {
-        raw[24] = { x: shR.x, y: Math.min(0.92, shR.y + 0.35), z: 0, visibility: 0.95 };
+      if (!raw || raw.length === 0) {
+        window.ReactNativeWebView?.postMessage(JSON.stringify({ type: 'lost' }));
+        return;
       }
 
       // Calculate joint angles for current exercise
@@ -191,7 +179,7 @@ function getMediaPipeHtml(exerciseId: string = 'seated-arm-raise'): string {
         if (hip && knee && ankle) {
           currentAngle = calcAngle(hip, knee, ankle);
           focalPoint = { x: (1 - knee.x) * width, y: knee.y * height };
-          goalHit = currentAngle >= 160;
+          goalHit = currentAngle >= (exerciseId === 'sit-to-stand' ? 165 : 160);
         }
       }
 
@@ -203,7 +191,7 @@ function getMediaPipeHtml(exerciseId: string = 'seated-arm-raise'): string {
 
       for (const [i, j] of SKELETON_PAIRS) {
         const p1 = raw[i], p2 = raw[j];
-        if (!p1 || !p2 || (p1.visibility || 1) < 0.3 || (p2.visibility || 1) < 0.3) continue;
+        if (!p1 || !p2 || (p1.visibility ?? 0) < 0.3 || (p2.visibility ?? 0) < 0.3) continue;
         ctx.beginPath();
         ctx.moveTo((1 - p1.x) * width, p1.y * height);
         ctx.lineTo((1 - p2.x) * width, p2.y * height);
@@ -212,7 +200,7 @@ function getMediaPipeHtml(exerciseId: string = 'seated-arm-raise'): string {
 
       ctx.shadowBlur = 0;
       raw.forEach((lm, idx) => {
-        if ((lm.visibility || 1) < 0.3) return;
+        if ((lm.visibility ?? 0) < 0.3) return;
         const px = (1 - lm.x) * width;
         const py = lm.y * height;
         const isFocal = idx === 11 || idx === 12 || idx === 13 || idx === 14 || idx === 25 || idx === 26;
@@ -236,8 +224,8 @@ function getMediaPipeHtml(exerciseId: string = 'seated-arm-raise'): string {
         x: lm.x,
         y: lm.y,
         z: lm.z || 0,
-        visibility: typeof lm.visibility === 'number' ? lm.visibility : 0.9,
-        presence: typeof lm.visibility === 'number' ? lm.visibility : 0.9
+        visibility: typeof lm.visibility === 'number' ? lm.visibility : 0,
+        presence: typeof lm.visibility === 'number' ? lm.visibility : 0
       }));
 
       if (window.ReactNativeWebView) {
@@ -253,17 +241,26 @@ function getMediaPipeHtml(exerciseId: string = 'seated-arm-raise'): string {
 }
 
 export default function PoseTrackerView({ exerciseId = 'seated-arm-raise', onFrame, onPoseFrame, onError, style, ...rest }: PoseTrackerViewProps) {
+  const [tracking, setTracking] = React.useState(false);
+  const [cameraReady, setCameraReady] = React.useState(false);
   const onPoseFrameRef = React.useRef(onPoseFrame);
   onPoseFrameRef.current = onPoseFrame;
   const onFrameRef = React.useRef(onFrame);
   onFrameRef.current = onFrame;
+  const onErrorRef = React.useRef(onError);
+  onErrorRef.current = onError;
   const frameIndexRef = React.useRef(0);
+  const webViewSource = React.useMemo(
+    () => ({ html: getMediaPipeHtml(exerciseId), baseUrl: 'https://localhost/' }),
+    [exerciseId],
+  );
 
   const onWebViewMessage = React.useCallback(
     (event: WebViewMessageEvent) => {
       try {
         const data = JSON.parse(event.nativeEvent.data);
         if (data.type === 'landmarks' && Array.isArray(data.landmarks)) {
+          setTracking(true);
           const now = Date.now();
           frameIndexRef.current += 1;
           onPoseFrameRef.current?.({
@@ -284,21 +281,37 @@ export default function PoseTrackerView({ exerciseId = 'seated-arm-raise', onFra
               height: 480,
             },
           });
+        } else if (data.type === 'camera-ready') {
+          setCameraReady(true);
+          const now = Date.now();
+          onFrameRef.current?.({ nativeEvent: { frameIndex: 0, timestampNs: now * 1_000_000, elapsedRealtimeMs: now, width: 640, height: 480 } });
+        } else if (data.type === 'lost') {
+          setTracking(false);
+          onPoseFrameRef.current?.({ nativeEvent: { timestampMs: Date.now(), imageWidth: 640, imageHeight: 480, presence: 'lost', landmarks: [] } });
+        } else if (data.type === 'error') {
+          setTracking(false);
+          onErrorRef.current?.({ nativeEvent: { category: data.category === 'unsupported-build' || data.category === 'camera-permission' || data.category === 'pose-initialization' || data.category === 'pose-runtime' ? data.category : 'camera-startup', message: String(data.message || 'Camera could not start') } });
         }
       } catch {}
     },
     []
   );
 
-  if (!NativeView) {
-    const htmlSource = getMediaPipeHtml(exerciseId);
+  React.useEffect(() => {
+    if (NativeView || cameraReady) return;
+    const timeout = setTimeout(() => {
+      onErrorRef.current?.({ nativeEvent: { category: 'camera-startup', message: 'Camera startup timed out' } });
+    }, 15000);
+    return () => clearTimeout(timeout);
+  }, [cameraReady]);
 
+  if (!NativeView) {
     return (
       <View style={[styles.container, style]}>
         {/* Real MediaPipe Pose Tracking inside Hardware Accelerated WebView */}
         <WebView
           originWhitelist={['*']}
-          source={{ html: htmlSource }}
+          source={webViewSource}
           style={StyleSheet.absoluteFill}
           allowsInlineMediaPlayback
           mediaPlaybackRequiresUserAction={false}
@@ -307,13 +320,14 @@ export default function PoseTrackerView({ exerciseId = 'seated-arm-raise', onFra
           domStorageEnabled
           androidLayerType="hardware"
           onMessage={onWebViewMessage}
+          onError={() => onErrorRef.current?.({ nativeEvent: { category: 'camera-startup', message: 'Camera page could not load' } })}
         />
 
         {/* Clean Subtle Status Indicator */}
         <View style={styles.statusBar} pointerEvents="none">
           <View style={styles.statusPill}>
             <View style={[styles.dot, { backgroundColor: '#38BDF8' }]} />
-            <Text style={styles.statusText}>TRACKING ACTIVE</Text>
+            <Text style={styles.statusText}>{tracking ? 'TRACKING ACTIVE' : 'POSITION YOURSELF'}</Text>
           </View>
         </View>
       </View>

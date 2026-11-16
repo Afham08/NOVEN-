@@ -27,17 +27,36 @@ const SKELETON_PAIRS: [number, number][] = [
   [24, 26], [26, 28], [28, 30], [28, 32],
 ];
 
+const pendingScripts = new Map<string, Promise<void>>();
+
 function loadScript(src: string): Promise<void> {
-  return new Promise((resolve, reject) => {
-    if (typeof document === 'undefined') return resolve();
-    if (document.querySelector(`script[src="${src}"]`)) return resolve();
+  if (typeof window !== 'undefined' && (window as unknown as { Pose?: unknown }).Pose) return Promise.resolve();
+  const pending = pendingScripts.get(src);
+  if (pending) return pending;
+  const loading = new Promise<void>((resolve, reject) => {
+    if (typeof document === 'undefined') return reject(new Error('Browser document is unavailable'));
     const script = document.createElement('script');
     script.src = src;
     script.crossOrigin = 'anonymous';
-    script.onload = () => resolve();
-    script.onerror = () => reject(new Error(`Failed to load ${src}`));
+    const timeout = window.setTimeout(() => {
+      script.remove();
+      pendingScripts.delete(src);
+      reject(new Error('Pose model download timed out'));
+    }, 15000);
+    script.onload = () => {
+      window.clearTimeout(timeout);
+      resolve();
+    };
+    script.onerror = () => {
+      window.clearTimeout(timeout);
+      script.remove();
+      pendingScripts.delete(src);
+      reject(new Error('Pose model could not download'));
+    };
     document.head.appendChild(script);
   });
+  pendingScripts.set(src, loading);
+  return loading;
 }
 
 function calculateAngle(
@@ -68,7 +87,6 @@ export default function PoseTrackerView({
   const [legsVisible, setLegsVisible] = React.useState(false);
   const [liveAngle, setLiveAngle] = React.useState<number>(90);
   const [isGoalReached, setIsGoalReached] = React.useState(false);
-  const [deskMode, setDeskMode] = React.useState(true);
   const [cameraError, setCameraError] = React.useState<string | null>(null);
 
   const onPoseFrameRef = React.useRef(onPoseFrame);
@@ -82,8 +100,6 @@ export default function PoseTrackerView({
 
   const frameIndexRef = React.useRef(0);
   const isBusyRef = React.useRef(false);
-  const triggerStepRef = React.useRef(-1);
-  const lastArmStateRef = React.useRef(false);
 
   // Exercise Threshold Specifications
   const exerciseSpecs = React.useMemo(() => {
@@ -105,6 +121,15 @@ export default function PoseTrackerView({
           isRest: (ang: number) => ang >= 95,
         };
       case 'seated-knee-extension':
+        return {
+          title: 'Seated Knee Extension', targetLabel: '> 160°', restLabel: '< 140°',
+          isGoal: (ang: number) => ang >= 160, isRest: (ang: number) => ang <= 140,
+        };
+      case 'sit-to-stand':
+        return {
+          title: 'Sit-to-Stand', targetLabel: '> 165°', restLabel: '< 140°',
+          isGoal: (ang: number) => ang >= 165, isRest: (ang: number) => ang <= 140,
+        };
       default:
         return {
           title: 'Seated Knee Extension',
@@ -137,7 +162,8 @@ export default function PoseTrackerView({
               height: { ideal: 480 },
             },
           });
-        } catch {
+        } catch (error: unknown) {
+          if (!(error instanceof DOMException) || error.name !== 'OverconstrainedError') throw error;
           // Fallback for mobile phone browsers that reject resolution constraints
           s = await navigator.mediaDevices.getUserMedia({
             video: { facingMode: 'user' },
@@ -156,14 +182,27 @@ export default function PoseTrackerView({
           videoRef.current.srcObject = s;
           try {
             await videoRef.current.play();
-          } catch {}
+            if (!isMounted) return;
+            const now = performance.now();
+            onFrameRef.current?.({ nativeEvent: {
+              frameIndex: 0,
+              timestampNs: Math.round(now * 1_000_000),
+              elapsedRealtimeMs: now,
+              width: videoRef.current.videoWidth || 640,
+              height: videoRef.current.videoHeight || 480,
+            } });
+          } catch (error: unknown) {
+            const message = error instanceof Error ? error.message : 'Camera preview could not start';
+            setCameraError(message);
+            onErrorRef.current?.({ nativeEvent: { category: 'camera-startup', message } });
+          }
         }
       } catch (err: unknown) {
         if (isMounted) {
           const message = err instanceof Error ? err.message : 'Camera access denied';
           setCameraError(message);
           onErrorRef.current?.({
-            nativeEvent: { category: 'camera-permission', message },
+            nativeEvent: { category: err instanceof DOMException && err.name === 'NotAllowedError' ? 'camera-permission' : 'camera-startup', message },
           });
         }
       }
@@ -206,7 +245,7 @@ export default function PoseTrackerView({
 
         pose.onResults(processResults);
         poseInstance = pose;
-        if (active) setAiStatus('active');
+        if (active) setAiStatus('loading');
 
         function loop() {
           if (!active) return;
@@ -221,7 +260,13 @@ export default function PoseTrackerView({
             isBusyRef.current = true;
             poseInstance
               .send({ image: video })
-              .catch(() => {})
+              .catch((error: unknown) => {
+                if (active) {
+                  setAiStatus('error');
+                  onErrorRef.current?.({ nativeEvent: { category: 'pose-runtime', message: error instanceof Error ? error.message : 'Pose tracking stopped' } });
+                  active = false;
+                }
+              })
               .finally(() => {
                 isBusyRef.current = false;
               });
@@ -230,8 +275,11 @@ export default function PoseTrackerView({
         }
 
         animId = requestAnimationFrame(loop);
-      } catch {
-        if (active) setAiStatus('error');
+      } catch (error: unknown) {
+        if (active) {
+          setAiStatus('error');
+          onErrorRef.current?.({ nativeEvent: { category: 'pose-initialization', message: error instanceof Error ? error.message : 'Pose tracking could not start' } });
+        }
       }
     }
 
@@ -273,6 +321,8 @@ export default function PoseTrackerView({
 
       if (!raw || raw.length === 0) {
         setPersonInFrame(false);
+        setAiStatus('active');
+        setLegsVisible(false);
         onPoseFrameRef.current?.({
           nativeEvent: {
             timestampMs: now,
@@ -286,6 +336,7 @@ export default function PoseTrackerView({
       }
 
       setPersonInFrame(true);
+      setAiStatus('active');
 
       // Check Lower Body Visibility
       const leftKnee = raw[25];
@@ -320,15 +371,6 @@ export default function PoseTrackerView({
           currentAngle = calculateAngle(hip, knee, ankle);
           focalPoint = { x: (1 - knee.x) * width, y: knee.y * height };
         }
-      } else {
-        // Seated Knee Extension (At Desk: tracks visible arm extension)
-        const shoulder = raw[12] || raw[11];
-        const elbow = raw[14] || raw[13];
-        const wrist = raw[16] || raw[15];
-        if (shoulder && elbow && wrist) {
-          currentAngle = calculateAngle(shoulder, elbow, wrist);
-          focalPoint = { x: (1 - elbow.x) * width, y: elbow.y * height };
-        }
       }
 
       setLiveAngle(currentAngle);
@@ -345,7 +387,7 @@ export default function PoseTrackerView({
         const p1 = raw[i];
         const p2 = raw[j];
         if (!p1 || !p2) continue;
-        if ((p1.visibility ?? 1) < 0.3 || (p2.visibility ?? 1) < 0.3) continue;
+        if ((p1.visibility ?? 0) < 0.3 || (p2.visibility ?? 0) < 0.3) continue;
 
         ctx.beginPath();
         ctx.moveTo((1 - p1.x) * width, p1.y * height);
@@ -355,7 +397,7 @@ export default function PoseTrackerView({
 
       ctx.shadowBlur = 0;
       raw.forEach((lm, idx) => {
-        if ((lm.visibility ?? 1) < 0.3) return;
+        if ((lm.visibility ?? 0) < 0.3) return;
         const px = (1 - lm.x) * width;
         const py = lm.y * height;
 
@@ -376,46 +418,14 @@ export default function PoseTrackerView({
       }
 
       // --- CONSTRUCT COMPLIANT NOVEN LANDMARKS ---
-      let landmarks: LandmarkEventPayload[] = raw.map((lm, idx) => ({
+      const landmarks: LandmarkEventPayload[] = raw.map((lm, idx) => ({
         name: POSE_LANDMARK_NAMES[idx] || (`UNKNOWN_${idx}` as PoseLandmarkName),
         x: lm.x,
         y: lm.y,
         z: lm.z ?? 0,
-        visibility: typeof lm.visibility === 'number' ? lm.visibility : 0.9,
-        presence: typeof lm.visibility === 'number' ? lm.visibility : 0.9,
+        visibility: typeof lm.visibility === 'number' ? lm.visibility : 0,
+        presence: typeof lm.visibility === 'number' ? lm.visibility : 0,
       }));
-
-      // In Desk Mode (if legs are occluded), upper-body movement bridges the leg rep
-      if (!hasLegs && deskMode && exerciseId === 'seated-knee-extension') {
-        const isArmHigh = currentAngle > 115;
-        const wasArmHigh = lastArmStateRef.current;
-        lastArmStateRef.current = isArmHigh;
-
-        let simKneeAngle = 90;
-        if (isArmHigh) simKneeAngle = 170;
-        else if (wasArmHigh && !isArmHigh) simKneeAngle = 90;
-
-        if (triggerStepRef.current >= 0) {
-          const traj = [90, 115, 140, 165, 172, 172, 155, 130, 90];
-          simKneeAngle = traj[triggerStepRef.current] || 90;
-          triggerStepRef.current += 1;
-          if (triggerStepRef.current >= traj.length) triggerStepRef.current = -1;
-        }
-
-        const hipL = landmarks.find((l) => l.name === 'LEFT_HIP') || { x: 0.44, y: 0.5 };
-        const hipR = landmarks.find((l) => l.name === 'RIGHT_HIP') || { x: 0.56, y: 0.5 };
-        const kneeY = Math.min(0.88, hipL.y + 0.22);
-        const rad = Math.PI / 2 - ((simKneeAngle - 90) * Math.PI) / 180;
-        const ankleL = { x: hipL.x + Math.cos(rad) * 0.22, y: kneeY + Math.sin(rad) * 0.22 };
-
-        landmarks = landmarks.map((lm) => {
-          if (lm.name === 'LEFT_KNEE') return { ...lm, x: hipL.x, y: kneeY, visibility: 0.95 };
-          if (lm.name === 'RIGHT_KNEE') return { ...lm, x: hipR.x, y: kneeY, visibility: 0.95 };
-          if (lm.name === 'LEFT_ANKLE') return { ...lm, x: ankleL.x, y: ankleL.y, visibility: 0.95 };
-          if (lm.name === 'RIGHT_ANKLE') return { ...lm, x: hipR.x, y: kneeY + 0.22, visibility: 0.95 };
-          return lm;
-        });
-      }
 
       onPoseFrameRef.current?.({
         nativeEvent: {
@@ -437,20 +447,8 @@ export default function PoseTrackerView({
         },
       });
     },
-    [deskMode, exerciseId, exerciseSpecs]
+    [exerciseId, exerciseSpecs]
   );
-
-  // Spacebar test shortcut
-  React.useEffect(() => {
-    const handleKeyDown = (e: KeyboardEvent) => {
-      if (e.code === 'Space' && !e.repeat && document.activeElement?.tagName !== 'INPUT') {
-        e.preventDefault();
-        triggerStepRef.current = 0;
-      }
-    };
-    window.addEventListener('keydown', handleKeyDown);
-    return () => window.removeEventListener('keydown', handleKeyDown);
-  }, []);
 
   if (cameraError) {
     return (
@@ -503,7 +501,7 @@ export default function PoseTrackerView({
             ]}
           />
           <Text style={styles.statusText}>
-            {personInFrame ? 'TRACKING ACTIVE' : 'STEP INTO FRAME'}
+            {aiStatus === 'loading' ? 'PREPARING CAMERA' : personInFrame ? 'TRACKING ACTIVE' : 'STEP INTO FRAME'}
           </Text>
         </View>
       </View>

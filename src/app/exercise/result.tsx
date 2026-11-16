@@ -149,7 +149,7 @@ export default function ResultScreen() {
         <InfoRow stacked label="Movement range" value={parseRangeParam(range)} />
         <InfoRow
           stacked
-          label="Movement consistency"
+          label="Rep range similarity"
           value={parseConsistencyParam(consistency)}
         />
       </Card>

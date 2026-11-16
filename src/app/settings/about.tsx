@@ -18,10 +18,10 @@ const version = Constants.expoConfig?.version;
 export default function AboutScreen() {
   return (
     <Screen>
-      <Header title="About NOVEN" />
+      <Header title="About OSMIUM" />
 
       <Card gap={Spacing.three}>
-        <InfoRow label="App" value="NOVEN" emphasize stacked />
+        <InfoRow label="App" value="OSMIUM" emphasize stacked />
         <InfoRow label="Version" value={version ?? '—'} stacked />
         {/*
           Counted from the real catalogue rather than written out, so the number

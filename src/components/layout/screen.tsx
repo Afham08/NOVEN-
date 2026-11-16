@@ -19,8 +19,8 @@ function activityNavigationTitle(path: string): string | null {
   return null;
 }
 
-export type ScreenProps = PropsWithChildren<{ contentStyle?: StyleProp<ViewStyle> }>;
-export function Screen({ children, contentStyle }: ScreenProps) {
+export type ScreenProps = PropsWithChildren<{ contentStyle?: StyleProp<ViewStyle>; onBack?: () => void }>;
+export function Screen({ children, contentStyle, onBack }: ScreenProps) {
   const { bottom, top } = useSafeAreaInsets();
   const { width } = useWindowDimensions();
   const path = usePathname();
@@ -41,7 +41,7 @@ export function Screen({ children, contentStyle }: ScreenProps) {
               accessibilityRole="button"
               accessibilityLabel={`Back from ${navigationTitle}`}
               hitSlop={8}
-              onPress={() => router.back()}
+              onPress={onBack ?? (() => router.back())}
               style={({ pressed, hovered }) => [
                 styles.backButton,
                 {
