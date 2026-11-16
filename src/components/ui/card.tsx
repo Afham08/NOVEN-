@@ -1,7 +1,7 @@
 import { GlassFill } from './glass';
 import { StyleSheet, View, type ViewProps } from 'react-native';
 
-import { Colors, Radius, Spacing } from '@/constants/theme';
+import { Radius, Spacing } from '@/constants/theme';
 import { useTheme } from '@/hooks/use-theme';
 
 export type CardVariant = 'surface' | 'sage' | 'tint' | 'inverse';
@@ -49,14 +49,19 @@ export function Card({
           backgroundColor: background,
           borderColor,
           gap,
-          shadowColor: theme.shadow,
-          shadowOpacity: theme === Colors.dark ? 0 : 1,
+          boxShadow: `0 8px 24px ${theme.activityShadow}`,
+          shadowColor: theme.activityShadow,
+          shadowOpacity: 1,
         },
         paddingValue != null && { padding: paddingValue },
         style,
       ]}
       {...rest}>
-      {!isInverse && <GlassFill />}
+      {!isInverse && (
+        <View pointerEvents="none" style={styles.glassClip}>
+          <GlassFill />
+        </View>
+      )}
       {children}
     </View>
   );
@@ -65,10 +70,19 @@ export function Card({
 const styles = StyleSheet.create({
   base: {
     borderRadius: Radius.card,
-    overflow: 'hidden',
+    overflow: 'visible',
     borderWidth: StyleSheet.hairlineWidth * 2,
-    shadowRadius: 22,
-    shadowOffset: { width: 0, height: 10 },
-    elevation: 2,
+    shadowRadius: 24,
+    shadowOffset: { width: 0, height: 8 },
+    elevation: 3,
+  },
+  glassClip: {
+    position: 'absolute',
+    top: 0,
+    right: 0,
+    bottom: 0,
+    left: 0,
+    borderRadius: Radius.card,
+    overflow: 'hidden',
   },
 });

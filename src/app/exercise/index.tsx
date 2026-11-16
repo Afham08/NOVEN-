@@ -3,14 +3,13 @@ import { SymbolView } from 'expo-symbols';
 import { useVideoPlayer, VideoView } from 'expo-video';
 import * as React from 'react';
 import { Modal, Platform, Pressable, StyleSheet, Text, View } from 'react-native';
-import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { Screen } from '@/components/layout/screen';
 import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
 import { GlassFill } from '@/components/ui/glass';
 import { SectionHeader } from '@/components/ui/section-header';
-import { Colors, Radius, Spacing, Type } from '@/constants/theme';
+import { Radius, Spacing, Type } from '@/constants/theme';
 import { exercisesCatalog, Exercise } from '@/data/exercises';
 import { useLanguage } from '@/hooks/use-language';
 import { useTheme } from '@/hooks/use-theme';
@@ -68,8 +67,6 @@ const EXERCISE_ICONS: Record<string, string> = {
 export default function ExerciseScreen() {
   const router = useRouter();
   const theme = useTheme();
-  const dark = theme === Colors.dark;
-  const insets = useSafeAreaInsets();
   const { language, t } = useLanguage();
   const [previewExercise, setPreviewExercise] = React.useState<Exercise | null>(null);
 
@@ -91,7 +88,7 @@ export default function ExerciseScreen() {
   };
 
   return (
-    <Screen contentStyle={{ paddingTop: Platform.OS === 'web' ? 88 : insets.top + 72 }}>
+    <Screen>
       <SectionHeader
         title={t('todaysExercises')}
       />
@@ -114,8 +111,6 @@ export default function ExerciseScreen() {
                 {
                   backgroundColor: theme.exerciseGlass,
                   borderColor: theme.glassBorder,
-                  shadowColor: '#000000',
-                  shadowOpacity: dark ? 0.24 : 0.12,
                 },
               ]}>
               <View style={styles.cardInner}>
@@ -157,12 +152,12 @@ export default function ExerciseScreen() {
                     style={({ pressed }) => [
                       styles.previewPill,
                       {
-                        backgroundColor: theme.glass,
+                        backgroundColor: theme.secondaryButton,
                         borderColor: theme.glassBorder,
                         opacity: pressed ? 0.75 : 1,
                       },
                     ]}>
-                    <Text style={[styles.previewPillText, { color: theme.textSecondary }]}>
+                    <Text style={[styles.previewPillText, { color: theme.secondaryButtonText }]}>
                       {language === 'kn' ? t('preview') : 'Watch demo'}
                     </Text>
                   </Pressable>
@@ -174,15 +169,14 @@ export default function ExerciseScreen() {
                     style={({ pressed }) => [
                       styles.startPill,
                       {
+                        backgroundColor: theme.exerciseButton,
                         opacity: pressed ? 0.85 : 1,
                         transform: [{ scale: pressed ? 0.98 : 1 }],
                       },
                     ]}>
-                    <View style={[styles.startGradient, { backgroundColor: theme.exerciseButton }]}>
-                      <Text style={[styles.startPillText, { color: theme.exerciseButtonText }]}>
-                        {t('start')}
-                      </Text>
-                    </View>
+                    <Text style={[styles.startPillText, { color: theme.exerciseButtonText }]}>
+                      {t('start')}
+                    </Text>
                   </Pressable>
                 </View>
               </View>
@@ -273,11 +267,6 @@ const styles = StyleSheet.create({
   exerciseCard: {
     borderRadius: 32,
     borderWidth: 1,
-    overflow: 'hidden',
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.12,
-    shadowRadius: 24,
-    elevation: 3,
   },
   cardInner: {
     padding: 24,
@@ -330,18 +319,16 @@ const styles = StyleSheet.create({
   },
   startPill: {
     flex: 1,
+    minHeight: 52,
     borderRadius: Radius.pill,
-    overflow: 'hidden',
-    shadowColor: '#000000',
-    shadowOffset: { width: 0, height: 6 },
-    shadowOpacity: 0.16,
-    shadowRadius: 10,
-    elevation: 5,
-  },
-  startGradient: {
-    paddingVertical: 14,
     alignItems: 'center',
     justifyContent: 'center',
+    shadowColor: '#000000',
+    shadowOffset: { width: 0, height: 5 },
+    shadowOpacity: 0.14,
+    shadowRadius: 14,
+    elevation: 3,
+    boxShadow: '0 5px 14px rgba(0,0,0,0.14)',
   },
   startPillText: {
     color: '#FFFFFF',

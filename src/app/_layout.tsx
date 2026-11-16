@@ -1,9 +1,9 @@
 import { useFonts } from 'expo-font';
-import { BlurView } from 'expo-blur';
+import { Manrope_700Bold } from '@expo-google-fonts/manrope';
 import { DarkTheme, DefaultTheme, Stack, ThemeProvider } from 'expo-router';
 import * as SplashScreen from 'expo-splash-screen';
 import { useEffect } from 'react';
-import { Platform, StatusBar, StyleSheet, useColorScheme, View } from 'react-native';
+import { Platform, StatusBar, useColorScheme } from 'react-native';
 
 import { isMediaAbortError, isMediaAbortRejection } from '@/activities/meditation-audio';
 import { AnimatedSplashOverlay } from '@/components/animated-icon';
@@ -33,7 +33,7 @@ export default function RootLayout() {
     InterBody: require('../../assets/fonts/Inter-Regular.ttf'),
     InterSemiBold: require('../../assets/fonts/Inter-SemiBold.ttf'),
     InterBold: require('../../assets/fonts/Inter-Bold.ttf'),
-    InterExtraBold: require('../../assets/fonts/InterDisplay-ExtraBold.ttf'),
+    ManropeDisplay: Manrope_700Bold,
   });
   useEffect(() => {
     if (typeof window === 'undefined' || typeof window.addEventListener !== 'function') {
@@ -79,7 +79,6 @@ export default function RootLayout() {
     </LanguageProvider>
   );
 }
-
 function RootNavigator() {
   const colorScheme = useColorScheme();
   const { preference } = useThemePreference();
@@ -123,25 +122,10 @@ function RootNavigator() {
           keeps a titled header. That header is the only visible way back once
           the tab bar is covered, so these screens must not be headerless.
         */}
-        <Stack.Screen
-          name="exercise/index"
-          options={{
-            title: 'Exercise',
-            headerTransparent: true,
-            headerStyle: { backgroundColor: 'transparent' },
-            headerBackground: () => (
-              <BlurView
-                intensity={54}
-                tint={isDark ? 'dark' : 'light'}
-                style={[styles.frostedHeader, { borderColor: palette.glassBorder }]}>
-                <View style={[StyleSheet.absoluteFill, { backgroundColor: palette.headerGlass }]} />
-              </BlurView>
-            ),
-          }}
-        />
-        <Stack.Screen name="yoga" options={{ title: 'Yoga' }} />
-        <Stack.Screen name="meditation" options={{ title: 'Meditation' }} />
-        <Stack.Screen name="wellness" options={{ title: 'Wellness' }} />
+        <Stack.Screen name="exercise/index" options={{ headerShown: false }} />
+        <Stack.Screen name="yoga" options={{ headerShown: false }} />
+        <Stack.Screen name="meditation" options={{ headerShown: false }} />
+        <Stack.Screen name="wellness" options={{ headerShown: false }} />
 
         {/*
           One screen runs every guided activity for all three kinds, so there is
@@ -149,10 +133,10 @@ function RootNavigator() {
           header here is the stack's, and each screen draws its own heading inside
           it, exactly as the exercise flow does.
         */}
-        <Stack.Screen name="yoga/[id]" options={{ title: 'Routine' }} />
-        <Stack.Screen name="meditation/[id]" options={{ title: 'Session' }} />
-        <Stack.Screen name="wellness/[id]" options={{ title: 'Activity' }} />
-        <Stack.Screen name="activity-result" options={{ title: 'Result' }} />
+        <Stack.Screen name="yoga/[id]" options={{ headerShown: false }} />
+        <Stack.Screen name="meditation/[id]" options={{ headerShown: false }} />
+        <Stack.Screen name="wellness/[id]" options={{ headerShown: false }} />
+        <Stack.Screen name="activity-result" options={{ headerShown: false }} />
 
         {/*
           Settings is not a tab. It is reached from Home and its own sections,
@@ -167,18 +151,10 @@ function RootNavigator() {
         <Stack.Screen name="settings/about" options={{ title: 'About NOVEN' }} />
 
         {/* The exercise flow, unchanged. */}
-        <Stack.Screen name="exercise/[id]" options={{ title: 'Exercise' }} />
-        <Stack.Screen name="exercise/session" options={{ title: 'Session' }} />
-        <Stack.Screen name="exercise/result" options={{ title: 'Result' }} />
+        <Stack.Screen name="exercise/[id]" options={{ headerShown: false }} />
+        <Stack.Screen name="exercise/session" options={{ headerShown: false }} />
+        <Stack.Screen name="exercise/result" options={{ headerShown: false }} />
       </Stack>
     </ThemeProvider>
   );
 }
-
-const styles = StyleSheet.create({
-  frostedHeader: {
-    flex: 1,
-    overflow: 'hidden',
-    borderBottomWidth: StyleSheet.hairlineWidth,
-  },
-});

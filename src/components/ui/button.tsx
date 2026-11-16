@@ -73,19 +73,23 @@ export function Button({
       ? variant === 'ink' || variant === 'primary'
         ? theme.exerciseButton
       : variant === 'secondary'
-        ? theme.accentSecondary
+        ? theme.secondaryButton
         : theme.danger
-    : 'transparent';
+    : variant === 'outline'
+      ? theme.secondaryButton
+      : 'transparent';
   const foreground = filled
     ? variant === 'ink' || variant === 'primary'
       ? theme.exerciseButtonText
+      : variant === 'secondary'
+        ? theme.secondaryButtonText
       : variant === 'destructive'
       ? theme.onDanger
       : theme.onAccent
     : variant === 'outline'
-      ? theme.accentStrong
+      ? theme.secondaryButtonText
       : theme.text;
-  const border = variant === 'outline' ? { borderWidth: 1.5, borderColor: theme.accentStrong } : undefined;
+  const border = variant === 'outline' ? { borderWidth: 1, borderColor: theme.glassBorder } : undefined;
 
   return (
     <Pressable

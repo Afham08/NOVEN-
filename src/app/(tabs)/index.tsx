@@ -43,13 +43,10 @@ export default function HomeScreen() {
             <SymbolView name={{ ios: 'gearshape', android: 'settings', web: 'settings' }} size={24} tintColor={theme.text} />
           </Pressable>
         </View>
-        <View style={[styles.wordmarkShell, { shadowColor: '#000000' }]}>
-          <Text accessibilityRole="header" style={[styles.wordmark,
-            { color: theme.heading, fontFamily: kn ? Fonts.sans : 'InterExtraBold',
-              fontWeight: '900',
-              fontSize: wide ? 108 : 66, lineHeight: wide ? 116 : 76,
-              letterSpacing: kn ? 0 : wide ? -7.5 : -4.2 }]}>{t('appName')}</Text>
-        </View>
+        <Text accessibilityRole="header" style={[styles.wordmark,
+          { color: theme.heading, fontFamily: kn ? Fonts.sans : 'ManropeDisplay',
+            fontSize: wide ? 104 : 64, lineHeight: wide ? 112 : 74,
+            letterSpacing: kn ? 0 : wide ? -3.6 : -2 }]}>{t('appName')}</Text>
         <View style={[styles.sectionHeading, wide && { marginTop: 22 }]}>
           <Text style={[styles.sectionLabel, { fontFamily: activityFont, color: theme.text }]}>{kn ? 'ಚಟುವಟಿಕೆಗಳು' : 'Activities'}</Text>
           <Pressable accessibilityRole="button" onPress={() => router.push('/activities')} style={styles.allActivities}>
@@ -73,8 +70,7 @@ const styles = StyleSheet.create({
   root: { flex: 1, backgroundColor: '#FFFFFF' },
   content: { width: '100%', maxWidth: 1120, alignSelf: 'center', paddingHorizontal: 20 },
   tools: { flexDirection: 'row', justifyContent: 'flex-end', gap: 10 },
-  wordmarkShell: { marginTop: -2, shadowOffset: { width: 0, height: 8 }, shadowOpacity: 0.12, shadowRadius: 18 },
-  wordmark: { textAlign: 'center', textShadowColor: 'rgba(255,255,255,0.52)', textShadowOffset: { width: 0, height: 0 }, textShadowRadius: 12 },
+  wordmark: { textAlign: 'center', marginTop: -2 },
   settings: { width: 50, height: 50, borderRadius: 25, borderWidth: 1, borderColor: '#FFFFFFAA',
     backgroundColor: '#FFFFFF80', justifyContent: 'center', alignItems: 'center' },
   sectionHeading: { marginTop: 18, marginBottom: 12, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 16 },
