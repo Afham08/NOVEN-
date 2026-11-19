@@ -57,7 +57,7 @@ const ACTIVITIES = [
   {
     name: 'meditation',
     title: 'Meditation',
-    description: 'Short calm moments, one minute to ten',
+    description: 'Guided breathing for 1, 3 or 5 minutes',
     rightLabel: 'Open',
     tint: 'sage' as const,
     icon: {
@@ -140,7 +140,7 @@ export default function ActivitiesScreen() {
       />
       <ActivityCard
         title="Meditation sessions"
-        description={`${guidedCatalog('meditation').length} options, one minute to ten.`}
+        description="Guided breathing for 1, 3 or 5 minutes"
         rightLabel="Open"
         onPress={() => router.push('/meditation')}
       />
