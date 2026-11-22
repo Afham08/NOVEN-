@@ -29,4 +29,9 @@ const asyncStorageStore: KeyValueStore = {
  * memory. A single store instance is shared for the app's lifetime, so the
  * history is read from disk once and then served from that cache.
  */
-export const sessionStore: SessionStore = createSessionStore(asyncStorageStore);
+export const sessionStore: SessionStore = createSessionStore(asyncStorageStore, {
+  shared: typeof window !== 'undefined' && typeof document !== 'undefined',
+  withWriteLock: (task) => typeof navigator !== 'undefined' && navigator.locks
+    ? navigator.locks.request('noven.session-history.v1', task)
+    : task(),
+});

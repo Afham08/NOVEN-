@@ -1,5 +1,5 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import React, { createContext, useContext, useEffect, useState, useMemo } from 'react';
+import React, { createContext, useContext, useEffect, useState, useMemo, useRef } from 'react';
 
 export type Language = 'en' | 'kn';
 
@@ -26,7 +26,7 @@ export const TRANSLATIONS = {
     system: 'Same as my phone',
     selected: 'Selected',
     todaysExercises: "Today's Exercises",
-    exerciseSubtitle: '3 simple daily movements. Preview the movement or start directly.',
+    exerciseSubtitle: 'Choose a movement to see instructions and start a session.',
     seatedKneeExtension: 'Seated Knee Extension',
     seatedArmRaise: 'Seated Arm Raise',
     sitToStand: 'Sit-to-Stand',
@@ -63,7 +63,7 @@ export const TRANSLATIONS = {
     system: 'ಫೋನ್ ಸೆಟ್ಟಿಂಗ್‌ನಂತೆ',
     selected: 'ಆಯ್ಕೆಮಾಡಲಾಗಿದೆ',
     todaysExercises: 'ಇಂದಿನ ವ್ಯಾಯಾಮಗಳು',
-    exerciseSubtitle: '3 ಸರಳ ದೈನಂದಿನ ಚಲನೆಗಳು. ಮುನ್ನೋಟ ವೀಕ್ಷಿಸಿ ಅಥವಾ ನೇರವಾಗಿ ಪ್ರಾರಂಭಿಸಿ.',
+    exerciseSubtitle: 'ಸೂಚನೆಗಳನ್ನು ನೋಡಲು ಮತ್ತು ಪ್ರಾರಂಭಿಸಲು ವ್ಯಾಯಾಮವನ್ನು ಆಯ್ಕೆಮಾಡಿ.',
     seatedKneeExtension: 'ಕುಳಿತು ಮೊಣಕಾಲು ಚಾಚುವುದು',
     seatedArmRaise: 'ಕುಳಿತು ಕೈ ಎತ್ತುವುದು',
     sitToStand: 'ಕುಳಿತು ಏಳುವುದು',
@@ -97,15 +97,19 @@ const STORAGE_KEY = '@noven_language_preference';
 export function LanguageProvider({ children }: { children: React.ReactNode }) {
   const [language, setLanguageState] = useState<Language>('en');
 
+  const userSelected = useRef(false);
   useEffect(() => {
+    let active = true;
     AsyncStorage.getItem(STORAGE_KEY).then((saved) => {
-      if (saved === 'en' || saved === 'kn') {
+      if (active && !userSelected.current && (saved === 'en' || saved === 'kn')) {
         setLanguageState(saved);
       }
     }).catch(() => {});
+    return () => { active = false; };
   }, []);
 
   const setLanguage = (lang: Language) => {
+    userSelected.current = true;
     setLanguageState(lang);
     AsyncStorage.setItem(STORAGE_KEY, lang).catch(() => {});
   };

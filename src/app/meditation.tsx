@@ -1,6 +1,8 @@
 import { useRouter } from 'expo-router';
 import { Image, StyleSheet } from 'react-native';
 
+import { meditationSessions } from '@/activities/meditation';
+import { describeRoutineMeta } from '@/activities/activity-format';
 import { orbSessions } from '@/activities/orb-rhythm';
 import { ActivityCard } from '@/components/cards/activity-card';
 import { Screen } from '@/components/layout/screen';
@@ -20,6 +22,11 @@ export default function MeditationScreen() {
           icon={<Image accessible={false} source={require('../../assets/meditation/ember.png')} style={styles.orb} />}
           onPress={() => router.push({ pathname: '/meditation/[id]', params: { id: `breathing-${minutes}` } })}
         />
+      ))}
+      <SectionHeader title="Guided sessions" />
+      {meditationSessions.map((activity) => (
+        <ActivityCard key={activity.id} title={activity.name} description={describeRoutineMeta(activity)}
+          onPress={() => router.push(`/meditation/${activity.id}`)} />
       ))}
     </Screen>
   );

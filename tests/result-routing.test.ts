@@ -624,7 +624,7 @@ export function run(): void {
 
     // Singular/plural is decided from the real value, so a 1-rep session does
     // not read "1 exercises completed" and a 0-rep session is still honest.
-    check('singular and plural are both handled', source.includes("repCount === 1 ? 'exercise' : 'exercises'"));
+    check('singular and plural are both handled', source.includes("repCount === 1 ? 'rep' : 'reps'"));
 
     // A screen reader should hear the whole phrase, not a bare digit.
     check('the hero is one accessible element', /accessible\b/.test(source));

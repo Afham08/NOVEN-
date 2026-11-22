@@ -1,3 +1,4 @@
+import { getExerciseById } from '../data/exercises';
 import type { SessionRecord } from '../exercise/session-store';
 import { findGuidedActivity } from './catalog';
 import type { GuidedActivity } from './types';
@@ -71,7 +72,10 @@ export function describeSessionOutcome(record: SessionRecord): string {
   const kind = record.activityKind ?? 'exercise';
 
   if (kind === 'exercise' || record.activityKind === undefined) {
-    return `${record.reps} ${record.reps === 1 ? 'exercise' : 'exercises'} completed`;
+    if (getExerciseById(record.exerciseId)?.countUnit === 'step') {
+      return `${record.reps} ${record.reps === 1 ? 'step' : 'steps'} completed`;
+    }
+    return `${record.reps} ${record.reps === 1 ? 'rep' : 'reps'} completed`;
   }
 
   const activity = findGuidedActivity(record.exerciseId);

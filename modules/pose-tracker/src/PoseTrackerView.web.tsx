@@ -1,10 +1,8 @@
 import * as React from 'react';
-import { StyleSheet, Text, TouchableOpacity, View } from 'react-native';
+import { StyleSheet, Text, View } from 'react-native';
 
 import {
-  CameraFrameEventPayload,
   LandmarkEventPayload,
-  PoseFrameEventPayload,
   PoseLandmarkName,
   POSE_LANDMARK_NAMES,
   PoseTrackerViewProps,
@@ -63,8 +61,9 @@ function calculateAngle(
   p1: { x: number; y: number },
   p2: { x: number; y: number },
   p3: { x: number; y: number },
+  aspect: number,
 ): number {
-  const rad = Math.atan2(p3.y - p2.y, p3.x - p2.x) - Math.atan2(p1.y - p2.y, p1.x - p2.x);
+  const rad = Math.atan2(p3.y - p2.y, (p3.x - p2.x) * aspect) - Math.atan2(p1.y - p2.y, (p1.x - p2.x) * aspect);
   let deg = Math.abs((rad * 180.0) / Math.PI);
   if (deg > 180.0) deg = 360 - deg;
   return Math.round(deg);
@@ -84,62 +83,25 @@ export default function PoseTrackerView({
 
   const [aiStatus, setAiStatus] = React.useState<'loading' | 'active' | 'error'>('loading');
   const [personInFrame, setPersonInFrame] = React.useState(false);
-  const [legsVisible, setLegsVisible] = React.useState(false);
-  const [liveAngle, setLiveAngle] = React.useState<number>(90);
+
+
   const [isGoalReached, setIsGoalReached] = React.useState(false);
   const [cameraError, setCameraError] = React.useState<string | null>(null);
 
   const onPoseFrameRef = React.useRef(onPoseFrame);
-  onPoseFrameRef.current = onPoseFrame;
 
   const onFrameRef = React.useRef(onFrame);
-  onFrameRef.current = onFrame;
 
   const onErrorRef = React.useRef(onError);
-  onErrorRef.current = onError;
+
+  React.useLayoutEffect(() => {
+    onFrameRef.current = onFrame;
+    onPoseFrameRef.current = onPoseFrame;
+    onErrorRef.current = onError;
+  }, [onFrame, onPoseFrame, onError]);
 
   const frameIndexRef = React.useRef(0);
   const isBusyRef = React.useRef(false);
-
-  // Exercise Threshold Specifications
-  const exerciseSpecs = React.useMemo(() => {
-    switch (exerciseId) {
-      case 'seated-arm-raise':
-        return {
-          title: 'Seated Arm Raise',
-          targetLabel: '> 120°',
-          restLabel: '< 45°',
-          isGoal: (ang: number) => ang >= 120,
-          isRest: (ang: number) => ang <= 45,
-        };
-      case 'yoga-seated-hip-flexion':
-        return {
-          title: 'Seated March',
-          targetLabel: '< 70°',
-          restLabel: '> 95°',
-          isGoal: (ang: number) => ang <= 70,
-          isRest: (ang: number) => ang >= 95,
-        };
-      case 'seated-knee-extension':
-        return {
-          title: 'Seated Knee Extension', targetLabel: '> 160°', restLabel: '< 140°',
-          isGoal: (ang: number) => ang >= 160, isRest: (ang: number) => ang <= 140,
-        };
-      case 'sit-to-stand':
-        return {
-          title: 'Sit-to-Stand', targetLabel: '> 165°', restLabel: '< 140°',
-          isGoal: (ang: number) => ang >= 165, isRest: (ang: number) => ang <= 140,
-        };
-      default:
-        return {
-          title: 'Seated Knee Extension',
-          targetLabel: '> 160°',
-          restLabel: '< 140°',
-          isGoal: (ang: number) => ang >= 160,
-          isRest: (ang: number) => ang <= 140,
-        };
-    }
-  }, [exerciseId]);
 
   // 1. Initialize Webcam
   React.useEffect(() => {
@@ -215,6 +177,146 @@ export default function PoseTrackerView({
       stream?.getTracks().forEach((t) => t.stop());
     };
   }, []);
+
+  // 3. Process Pose Results & Render Clean Visual Feedback
+  const processResults = React.useCallback(
+    (results: { poseLandmarks?: MPPoint[] }) => {
+      const video = videoRef.current;
+      const canvas = canvasRef.current;
+      if (!canvas || !video) return;
+
+      const width = canvas.clientWidth || 640;
+      const height = canvas.clientHeight || 480;
+      const sourceWidth = video.videoWidth || 640;
+      const sourceHeight = video.videoHeight || 480;
+      const scale = Math.max(width / sourceWidth, height / sourceHeight);
+      const drawnWidth = sourceWidth * scale;
+      const drawnHeight = sourceHeight * scale;
+      const xPixel = (x: number) => (width - drawnWidth) / 2 + (1 - x) * drawnWidth;
+      const yPixel = (y: number) => (height - drawnHeight) / 2 + y * drawnHeight;
+      if (canvas.width !== width || canvas.height !== height) {
+        canvas.width = width;
+        canvas.height = height;
+      }
+
+      const ctx = canvas.getContext('2d');
+      if (!ctx) return;
+
+      ctx.clearRect(0, 0, width, height);
+
+      const raw = results.poseLandmarks;
+      const now = performance.now();
+      frameIndexRef.current += 1;
+
+      if (!raw || raw.length === 0) {
+        setPersonInFrame(false);
+        setAiStatus('active');
+
+        onPoseFrameRef.current?.({
+          nativeEvent: {
+            timestampMs: now,
+            imageWidth: video.videoWidth || 640,
+            imageHeight: video.videoHeight || 480,
+            presence: 'lost',
+            landmarks: [],
+          },
+        });
+        return;
+      }
+
+      setPersonInFrame(true);
+      setAiStatus('active');
+
+      const arm = exerciseId === 'seated-arm-raise';
+      const leg = exerciseId === 'seated-knee-extension' || exerciseId === 'sit-to-stand';
+      let goalHit = false;
+      let focalPoint: { x: number; y: number } | null = null;
+      if (arm || leg) {
+        for (const side of [0, 1]) {
+          const first = raw[23 + side];
+          const joint = raw[(arm ? 11 : 25) + side];
+          const last = raw[(arm ? 13 : 27) + side];
+          if (![first, joint, last].every(p => p && (p.visibility ?? 0) >= 0.4)) continue;
+          const angle = calculateAngle(first, joint, last, sourceWidth / sourceHeight);
+          goalHit = angle >= (arm ? 120 : exerciseId === 'sit-to-stand' ? 165 : 160);
+          focalPoint = { x: xPixel(joint.x), y: yPixel(joint.y) };
+          if (goalHit) break;
+        }
+      }
+      setIsGoalReached(goalHit);
+
+      // --- CLEAN MINIMAL SKELETON DRAWING ---
+      ctx.lineWidth = 2.5;
+      ctx.strokeStyle = goalHit ? '#10B981' : '#38BDF8';
+      ctx.shadowColor = goalHit ? '#10B981' : '#38BDF8';
+      ctx.shadowBlur = 6;
+
+      for (const [i, j] of SKELETON_PAIRS) {
+        const p1 = raw[i];
+        const p2 = raw[j];
+        if (!p1 || !p2) continue;
+        if ((p1.visibility ?? 0) < 0.3 || (p2.visibility ?? 0) < 0.3) continue;
+
+        ctx.beginPath();
+        ctx.moveTo(xPixel(p1.x), yPixel(p1.y));
+        ctx.lineTo(xPixel(p2.x), yPixel(p2.y));
+        ctx.stroke();
+      }
+
+      ctx.shadowBlur = 0;
+      raw.forEach((lm, idx) => {
+        if ((lm.visibility ?? 0) < 0.3) return;
+        const px = xPixel(lm.x);
+        const py = yPixel(lm.y);
+
+        const isFocal = idx === 11 || idx === 12 || idx === 25 || idx === 26 || idx === 13 || idx === 14;
+        ctx.fillStyle = isFocal ? (goalHit ? '#10B981' : '#F97316') : '#E2E8F0';
+        ctx.beginPath();
+        ctx.arc(px, py, isFocal ? 5 : 2.5, 0, 2 * Math.PI);
+        ctx.fill();
+      });
+
+      // Draw Joint Target Halo at Focal Joint (Clean subtle ring, no degrees or text)
+      if (focalPoint) {
+        ctx.strokeStyle = goalHit ? '#10B981' : '#38BDF8';
+        ctx.lineWidth = 2.5;
+        ctx.beginPath();
+        ctx.arc(focalPoint.x, focalPoint.y, 14, 0, 2 * Math.PI);
+        ctx.stroke();
+      }
+
+      // --- CONSTRUCT COMPLIANT NOVEN LANDMARKS ---
+      const landmarks: LandmarkEventPayload[] = raw.map((lm, idx) => ({
+        name: POSE_LANDMARK_NAMES[idx] || (`UNKNOWN_${idx}` as PoseLandmarkName),
+        x: lm.x,
+        y: lm.y,
+        z: lm.z ?? 0,
+        visibility: typeof lm.visibility === 'number' ? lm.visibility : 0,
+        presence: typeof lm.visibility === 'number' ? lm.visibility : 0,
+      }));
+
+      onPoseFrameRef.current?.({
+        nativeEvent: {
+          timestampMs: now,
+          imageWidth: video.videoWidth || 640,
+          imageHeight: video.videoHeight || 480,
+          presence: 'tracked',
+          landmarks,
+        },
+      });
+
+      onFrameRef.current?.({
+        nativeEvent: {
+          frameIndex: frameIndexRef.current,
+          timestampNs: Math.round(now * 1_000_000),
+          elapsedRealtimeMs: now,
+          width: video.videoWidth || 640,
+          height: video.videoHeight || 480,
+        },
+      });
+    },
+    [exerciseId]
+  );
 
   // 2. Initialize MediaPipe Pose Model
   React.useEffect(() => {
@@ -294,161 +396,7 @@ export default function PoseTrackerView({
         } catch {}
       }
     };
-  }, []);
-
-  // 3. Process Pose Results & Render Clean Visual Feedback
-  const processResults = React.useCallback(
-    (results: { poseLandmarks?: MPPoint[] }) => {
-      const video = videoRef.current;
-      const canvas = canvasRef.current;
-      if (!canvas || !video) return;
-
-      const width = canvas.clientWidth || 640;
-      const height = canvas.clientHeight || 480;
-      if (canvas.width !== width || canvas.height !== height) {
-        canvas.width = width;
-        canvas.height = height;
-      }
-
-      const ctx = canvas.getContext('2d');
-      if (!ctx) return;
-
-      ctx.clearRect(0, 0, width, height);
-
-      const raw = results.poseLandmarks;
-      const now = performance.now();
-      frameIndexRef.current += 1;
-
-      if (!raw || raw.length === 0) {
-        setPersonInFrame(false);
-        setAiStatus('active');
-        setLegsVisible(false);
-        onPoseFrameRef.current?.({
-          nativeEvent: {
-            timestampMs: now,
-            imageWidth: video.videoWidth || 640,
-            imageHeight: video.videoHeight || 480,
-            presence: 'lost',
-            landmarks: [],
-          },
-        });
-        return;
-      }
-
-      setPersonInFrame(true);
-      setAiStatus('active');
-
-      // Check Lower Body Visibility
-      const leftKnee = raw[25];
-      const rightKnee = raw[26];
-      const leftAnkle = raw[27];
-      const rightAnkle = raw[28];
-
-      const hasLegs =
-        (leftKnee && (leftKnee.visibility ?? 0) > 0.4 && leftAnkle && (leftAnkle.visibility ?? 0) > 0.4) ||
-        (rightKnee && (rightKnee.visibility ?? 0) > 0.4 && rightAnkle && (rightAnkle.visibility ?? 0) > 0.4);
-
-      setLegsVisible(Boolean(hasLegs));
-
-      // Calculate the active exercise joint angle
-      let currentAngle = 90;
-      let focalPoint: { x: number; y: number } | null = null;
-
-      if (exerciseId === 'seated-arm-raise') {
-        const shoulder = raw[12] || raw[11];
-        const elbow = raw[14] || raw[13];
-        const hip = raw[24] || raw[23];
-        if (shoulder && elbow && hip) {
-          currentAngle = calculateAngle(hip, shoulder, elbow);
-          focalPoint = { x: (1 - shoulder.x) * width, y: shoulder.y * height };
-        }
-      } else if (hasLegs) {
-        // Seated Knee Extension (Legs visible)
-        const hip = raw[24] || raw[23];
-        const knee = raw[26] || raw[25];
-        const ankle = raw[28] || raw[27];
-        if (hip && knee && ankle) {
-          currentAngle = calculateAngle(hip, knee, ankle);
-          focalPoint = { x: (1 - knee.x) * width, y: knee.y * height };
-        }
-      }
-
-      setLiveAngle(currentAngle);
-      const goalHit = exerciseSpecs.isGoal(currentAngle);
-      setIsGoalReached(goalHit);
-
-      // --- CLEAN MINIMAL SKELETON DRAWING ---
-      ctx.lineWidth = 2.5;
-      ctx.strokeStyle = goalHit ? '#10B981' : '#38BDF8';
-      ctx.shadowColor = goalHit ? '#10B981' : '#38BDF8';
-      ctx.shadowBlur = 6;
-
-      for (const [i, j] of SKELETON_PAIRS) {
-        const p1 = raw[i];
-        const p2 = raw[j];
-        if (!p1 || !p2) continue;
-        if ((p1.visibility ?? 0) < 0.3 || (p2.visibility ?? 0) < 0.3) continue;
-
-        ctx.beginPath();
-        ctx.moveTo((1 - p1.x) * width, p1.y * height);
-        ctx.lineTo((1 - p2.x) * width, p2.y * height);
-        ctx.stroke();
-      }
-
-      ctx.shadowBlur = 0;
-      raw.forEach((lm, idx) => {
-        if ((lm.visibility ?? 0) < 0.3) return;
-        const px = (1 - lm.x) * width;
-        const py = lm.y * height;
-
-        const isFocal = idx === 11 || idx === 12 || idx === 25 || idx === 26 || idx === 13 || idx === 14;
-        ctx.fillStyle = isFocal ? (goalHit ? '#10B981' : '#F97316') : '#E2E8F0';
-        ctx.beginPath();
-        ctx.arc(px, py, isFocal ? 5 : 2.5, 0, 2 * Math.PI);
-        ctx.fill();
-      });
-
-      // Draw Joint Target Halo at Focal Joint (Clean subtle ring, no degrees or text)
-      if (focalPoint) {
-        ctx.strokeStyle = goalHit ? '#10B981' : '#38BDF8';
-        ctx.lineWidth = 2.5;
-        ctx.beginPath();
-        ctx.arc(focalPoint.x, focalPoint.y, 14, 0, 2 * Math.PI);
-        ctx.stroke();
-      }
-
-      // --- CONSTRUCT COMPLIANT NOVEN LANDMARKS ---
-      const landmarks: LandmarkEventPayload[] = raw.map((lm, idx) => ({
-        name: POSE_LANDMARK_NAMES[idx] || (`UNKNOWN_${idx}` as PoseLandmarkName),
-        x: lm.x,
-        y: lm.y,
-        z: lm.z ?? 0,
-        visibility: typeof lm.visibility === 'number' ? lm.visibility : 0,
-        presence: typeof lm.visibility === 'number' ? lm.visibility : 0,
-      }));
-
-      onPoseFrameRef.current?.({
-        nativeEvent: {
-          timestampMs: now,
-          imageWidth: video.videoWidth || 640,
-          imageHeight: video.videoHeight || 480,
-          presence: 'tracked',
-          landmarks,
-        },
-      });
-
-      onFrameRef.current?.({
-        nativeEvent: {
-          frameIndex: frameIndexRef.current,
-          timestampNs: Math.round(now * 1_000_000),
-          elapsedRealtimeMs: now,
-          width: video.videoWidth || 640,
-          height: video.videoHeight || 480,
-        },
-      });
-    },
-    [exerciseId, exerciseSpecs]
-  );
+  }, [processResults]);
 
   if (cameraError) {
     return (

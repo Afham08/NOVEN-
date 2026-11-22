@@ -68,6 +68,9 @@ export function run(): void {
     for (const exercise of exercisesCatalog) {
       check(`${exercise.id} has camera thresholds to be measured against`, isPoseTracked(exercise.id), exercise.id);
     }
+    const session = stripComments(read('exercise', 'session.tsx'));
+    check('the live counter uses the tested session config without overriding hold times',
+      session.includes('const config = getExerciseSessionConfig(id)') && session.includes('new SessionEngine(config)'));
     check('the registry has a config for every catalogue entry', exercisesCatalog.every((e) => getExerciseConfig(e.id) !== undefined));
     check('and the registry has nothing extra', poseTrackedConfigs.length === exercisesCatalog.length, `${poseTrackedConfigs.length} vs ${exercisesCatalog.length}`);
   });
@@ -268,7 +271,7 @@ check(
       detail.includes("from '@/exercise/session-storage'") && detail.includes('store={sessionStore}'),
     );
     check("it lists only this exercise's sessions", detail.includes('exerciseId={exercise.id}'));
-    check('the section is labelled', detail.includes('title="Your sessions"'));
+    check('the section is labelled', detail.includes("'Your sessions'") && detail.includes("'ನಿಮ್ಮ ಅವಧಿಗಳು'"));
     check(
       'a row reopens the existing result screen',
       detail.includes("pathname: '/exercise/result'"),
@@ -459,7 +462,7 @@ check(
   suite('activity screens: durations come from the catalogue, never typed in', () => {
     for (const kind of ['yoga', 'meditation', 'wellness'] as const) {
       const list = read(`${kind}.tsx`);
-      check(`${kind} reads its lengths from the catalogue`, list.includes('guidedCatalog'), list);
+      check(`${kind} reads its lengths from the catalogue`, (kind === 'meditation' ? list.includes('orbSessions.map') && list.includes('meditationSessions.map') : list.includes('guidedCatalog')), list);
       check(`${kind} types no duration inline`, !/\b\d+\s*(sec|min|minutes|seconds)\b/.test(stripComments(list)), stripComments(list));
     }
   });
@@ -505,7 +508,7 @@ check(
     check('it deletes through the session store', code.includes('sessionStore') && code.includes('clearSessions'), code);
     check('it does not pretend to be encrypted', !/encrypt/i.test(code), code);
     check('it does not claim a server or backup', !/(server|cloud|upload|backup)/i.test(code), code);
-    check('it still keeps the camera facts', /only when you start an exercise session/i.test(privacy));
+    check('it still keeps the camera facts', /when you open a camera-guided activity/i.test(privacy));
   });
 
   suite('appearance: the choice is stored, applied, and reversible', () => {
@@ -519,7 +522,7 @@ check(
     check('every screen resolves through the stored preference', /preference === 'light'/.test(theme) && /preference === 'dark'/.test(theme), theme);
     check('system still defers to the phone', /Colors\[deviceScheme === 'dark' \? 'dark' : 'light'\]/.test(theme), theme);
     check('the navigator follows the same choice', rootLayout.includes('preference === \'system\''), rootLayout);
-    check('the provider sits above the navigator', rootLayout.indexOf('ThemePreferenceProvider') < rootLayout.indexOf('<Stack>'), rootLayout);
+    check('the provider sits above the navigator', /<ThemePreferenceProvider>\s*<RootNavigator/.test(rootLayout), rootLayout);
   });
 
   // ==========================================================================
@@ -537,7 +540,7 @@ check(
     const wellness = read('wellness.tsx');
     const code = stripComments(wellness);
 
-    check('it reads the session store', code.includes('sessionStore.getSessions()'), code);
+    check('it reads the session store', code.includes('useProgress(sessionStore)'), code);
     check('it derives today rather than storing a tick', code.includes('todayStatus('), code);
     check('it has no second storage key of its own', !/AsyncStorage|setItem|getItem/.test(code), code);
     check('it says nothing before the history has been read', /counts === null \? null/.test(code), code);

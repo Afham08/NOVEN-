@@ -1,10 +1,11 @@
-import { useFocusEffect, useRouter } from 'expo-router';
-import { useCallback, useState } from 'react';
+import { SessionHistoryLoadNotice } from '@/components/session/session-history-load-notice';
+import { useProgress } from '@/hooks/use-progress';
+import { useRouter } from 'expo-router';
 import { StyleSheet, Text } from 'react-native';
 
 import { describeLength } from '@/activities/activity-format';
 import { guidedCatalog } from '@/activities/catalog';
-import { countDoneToday, todayStatus, type TodayActivityStatus } from '@/activities/today';
+import { countDoneToday, todayStatus } from '@/activities/today';
 import { ActivityCard } from '@/components/cards/activity-card';
 import { Screen } from '@/components/layout/screen';
 import { Card } from '@/components/ui/card';
@@ -33,34 +34,14 @@ export default function WellnessScreen() {
   const theme = useTheme();
   const activities = guidedCatalog('wellness');
 
-  const [status, setStatus] = useState<TodayActivityStatus[] | null>(null);
-
-  /**
-   * Read on focus rather than on mount, for the same reason the session history
-   * does: finishing one of these and coming straight back has to show it as done,
-   * or the list contradicts the history sitting on the next tab.
-   *
-   * A read failure resolves to an empty list inside the store, so there is no
-   * error branch here — "nothing done yet" is the honest answer to a history that
-   * cannot be read.
-   */
-  useFocusEffect(
-    useCallback(() => {
-      let active = true;
-      void sessionStore.getSessions().then((records) => {
-        if (active) setStatus(todayStatus(records, activities, 'wellness'));
-      });
-      return () => {
-        active = false;
-      };
-    }, [activities]),
-  );
-
+  const { records, issue, retry } = useProgress(sessionStore);
+  const status = records && !issue ? todayStatus(records, activities, 'wellness') : null;
   const counts = status === null ? null : countDoneToday(status);
 
   return (
     <Screen>
       <SectionHeader accent title="Today" />
+      {issue && <SessionHistoryLoadNotice issue={issue} onRetry={retry} />}
 
       <Card variant="sage" gap={Spacing.two}>
         {/*

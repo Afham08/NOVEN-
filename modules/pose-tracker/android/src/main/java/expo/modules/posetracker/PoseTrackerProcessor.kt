@@ -127,7 +127,10 @@ class PoseTrackerProcessor(
     }
     imageProxy.close()
 
-    if (bitmap == null) return
+    if (bitmap == null) {
+      reportFatalFailure("pose-runtime", "The camera frame could not be read. Reopen the session.")
+      return
+    }
 
     val mpImage = try {
       BitmapImageBuilder(bitmap).build()

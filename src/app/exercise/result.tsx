@@ -72,7 +72,7 @@ export default function ResultScreen() {
     );
   }
 
-  const exerciseWord = repCount === 1 ? 'exercise' : 'exercises';
+  const exerciseWord = exercise.countUnit === 'step' ? (repCount === 1 ? 'step' : 'steps') : repCount === 1 ? 'rep' : 'reps';
   const historySaveColor =
     historySaveStatus === 'saved'
       ? theme.success
@@ -146,12 +146,14 @@ export default function ResultScreen() {
       <Card variant="surface" gap={Spacing.four}>
         <InfoRow stacked label="Time" value={parseDurationParam(duration)} />
         <InfoRow stacked label="Movement pace" value={formatPaceParamLabel(pace)} />
+        {exercise.countUnit !== 'step' && <>
         <InfoRow stacked label="Movement range" value={parseRangeParam(range)} />
         <InfoRow
           stacked
           label="Rep range similarity"
           value={parseConsistencyParam(consistency)}
         />
+        </>}
       </Card>
 
       {/* The single, obvious next step. Handled by the same one-shot `leave`. */}

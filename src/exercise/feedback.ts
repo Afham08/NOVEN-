@@ -179,6 +179,27 @@ const MOVEMENT_WORDING: Readonly<Record<string, MovementWording>> = {
     hold: 'Hold it there',
     return: 'Sit down slowly',
   },
+  "supported-squat": {
+    extend: "Bend your knees slowly", hold: "Keep your heels down", return: "Stand tall again",
+  },
+  "wall-push-ups": {
+    extend: "Bend your elbows", hold: "Keep your body in line", return: "Push away from the wall",
+  },
+  "standing-heel-raises": {
+    extend: "Lift your heels", hold: "Keep your toes down", return: "Lower your heels",
+  },
+  "toe-raises": {
+    extend: "Lift your toes", hold: "Keep your heels down", return: "Lower your toes",
+  },
+  "standing-hip-abduction": {
+    extend: "Move one leg to the side", hold: "Keep your torso upright", return: "Bring your leg back",
+  },
+  "standing-march": {
+    extend: "Lift one knee", hold: "Keep your balance", return: "Lower your foot",
+  },
+  "heel-to-toe-walking": {
+    extend: "Step heel to toe", hold: "Steady your feet", return: "Step with the other foot",
+  },
   'yoga-neck-extension': {
     extend: 'Look up slowly',
     hold: 'Hold it there',

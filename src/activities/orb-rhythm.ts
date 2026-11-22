@@ -1,3 +1,4 @@
+import { defineGuidedActivity } from './types';
 import type { BreathingTechnique } from './breath-cycle';
 
 export const orbSessions = [
@@ -19,3 +20,13 @@ export function orbRhythm(session: OrbSession): BreathingTechnique {
     ],
   };
 }
+
+export const orbActivities = orbSessions.map(({ minutes }) => defineGuidedActivity({
+  id: `breathing-${minutes}`,
+  kind: 'meditation',
+  name: `${minutes}-minute breathing`,
+  summary: 'Follow the breathing orb at your own pace.',
+  progressNoun: 'steps',
+  steps: [{ seconds: minutes * 60, title: 'Guided breathing', guidance: 'Follow the breathing orb.' }],
+  safetyNote: 'You can breathe normally during either hold.',
+}));

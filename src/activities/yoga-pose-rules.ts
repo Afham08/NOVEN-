@@ -80,7 +80,7 @@ function usable(
   const joint = getLandmark(landmarks, name);
   if (!joint) return undefined;
   if (!Number.isFinite(joint.x) || !Number.isFinite(joint.y)) return undefined;
-  if (joint.visibility < minVisibility) return undefined;
+  if (!Number.isFinite(joint.visibility) || joint.visibility < minVisibility) return undefined;
   return joint;
 }
 

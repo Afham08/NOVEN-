@@ -1,6 +1,6 @@
 import { useLocalSearchParams } from 'expo-router';
 
-import { findGuidedActivityInKind } from '@/activities/catalog';
+import { guidedCatalog, findGuidedActivityInKind } from '@/activities/catalog';
 import { GuidedActivityScreen } from '@/components/guided/guided-activity-screen';
 import { GuidedNotFound } from '@/components/guided/guided-not-found';
 
@@ -12,6 +12,10 @@ import { GuidedNotFound } from '@/components/guided/guided-not-found';
  * the Yoga, Meditation and Wellness sessions cannot drift apart by being edited
  * one at a time.
  */
+export function generateStaticParams() {
+  return guidedCatalog('yoga').map(({ id }) => ({ id }));
+}
+
 export default function YogaRoutineScreen() {
   const { id } = useLocalSearchParams<{ id?: string }>();
   const activity = findGuidedActivityInKind('yoga', id);

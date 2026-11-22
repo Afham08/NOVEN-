@@ -1,6 +1,6 @@
 import { NativeModule, requireNativeModule, requireOptionalNativeModule } from 'expo';
 
-declare class PoseTrackerModule extends NativeModule<{}> {}
+declare class PoseTrackerModule extends NativeModule<Record<string, never>> {}
 
 let poseTrackerModule: PoseTrackerModule | null = null;
 try {

@@ -1,6 +1,6 @@
 import { registerWebModule, NativeModule } from 'expo';
 
 // PoseTrackerModule is not available on the web platform.
-class PoseTrackerModule extends NativeModule<{}> {}
+class PoseTrackerModule extends NativeModule<Record<string, never>> {}
 
 export default registerWebModule(PoseTrackerModule, 'PoseTrackerModule');

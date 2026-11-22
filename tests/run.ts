@@ -21,6 +21,7 @@ import { run as runPoseUtils } from './pose-utils.test';
 import { run as runProgress } from './progress.test';
 import { run as runProgressChart } from './progress-chart.test';
 import { run as runReadinessGate } from './readiness-gate.test';
+import { run as runStandingExercises } from './standing-exercises.test';
 import { run as runRepDetector } from './rep-detector.test';
 import { run as runRepAggregation } from './rep-aggregation.test';
 import { run as runResultNavigation } from './result-navigation.test';
@@ -49,6 +50,7 @@ async function main(): Promise<void> {
   runMeditationAudio();
   runMeditationAudioRace();
   runPoseUtils();
+  runStandingExercises();
   runRepDetector();
   runRepAggregation();
   runReadinessGate();

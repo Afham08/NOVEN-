@@ -164,7 +164,7 @@ export class VoiceFeedbackController {
   private finished = false;
   private disposed = false;
 
-  constructor(private readonly sink: SpeechSink) {}
+  constructor(private readonly sink: SpeechSink, private readonly countUnit?: 'step', private readonly setupHint?: string) {}
 
   /**
    * The pose-frame entry point. Synchronous and non-blocking by design.
@@ -185,7 +185,7 @@ export class VoiceFeedbackController {
     if (repCompletedThisFrame) {
       const policy = POLICY.good;
       this.lastKind = 'good';
-      this.emit(`Good. Rep ${repCountToWords(reps)}.`, policy);
+      this.emit(`Good. ${this.countUnit ? 'Step' : 'Rep'} ${repCountToWords(reps)}.`, policy);
       return;
     }
 
@@ -227,7 +227,7 @@ export class VoiceFeedbackController {
     this.lastKind = kind;
 
     const policy = POLICY[kind];
-    const text = overrideText ?? SPEECH[kind];
+    const text = overrideText ?? (kind === 'setup' ? this.setupHint : undefined) ?? SPEECH[kind];
     if (!text) return false;
 
     // An explicit transition (Start / Pause / Resume) is a deliberate one-off
@@ -277,7 +277,7 @@ export class VoiceFeedbackController {
     this.suspended = true;
     this.lastKind = 'completed';
     this.emit('Session complete.', POLICY.completed);
-    if (reps > 0) this.emit(`You completed ${repCountToWords(reps)} reps.`, COMPLETION_TALLY_POLICY);
+    if (reps > 0) this.emit(`You completed ${repCountToWords(reps)} ${this.countUnit ? (reps === 1 ? 'step' : 'steps') : 'reps'}.`, COMPLETION_TALLY_POLICY);
   }
 
   /** Pre-Start setup instruction, spoken once when the screen appears. */

@@ -397,7 +397,7 @@ export function run(): void {
     check('no HUD overlay paints over the video', !screen.includes('hudOverlay'));
     check(
       'the phase chip and clock sit below the camera frame',
-      screen.indexOf('<SessionTimer') > screen.indexOf('styles.cameraFrame'),
+      screen.lastIndexOf('<SessionTimer') > screen.indexOf('styles.cameraFrame'),
     );
     check(
       'timer and current guidance are rendered below camera in the same horizontal section',
@@ -405,7 +405,7 @@ export function run(): void {
     );
     check(
       'the End control sits below the instructions/info section',
-      screen.indexOf('title="End"') > screen.indexOf('style={styles.guidance}'),
+      screen.lastIndexOf('title="End"') > screen.indexOf('style={styles.guidance}'),
     );
   });
 

@@ -89,7 +89,7 @@ export function Button({
     : variant === 'outline'
       ? theme.secondaryButtonText
       : theme.text;
-  const border = variant === 'outline' ? { borderWidth: 1, borderColor: theme.glassBorder } : undefined;
+  const border = variant === 'outline' ? { borderWidth: 1, borderColor: theme.accentStrong } : undefined;
 
   return (
     <Pressable

@@ -1,3 +1,4 @@
+import { orbActivities } from '../src/activities/orb-rhythm';
 import { check, suite } from './harness';
 
 import {
@@ -205,7 +206,8 @@ export function run(): void {
         check(`${activity.id} has a name`, activity.name.trim().length > 0);
         check(`${activity.id} has a summary`, activity.summary.trim().length > 0);
         check(`${activity.id} has a safety note`, activity.safetyNote.trim().length > 0);
-        check(`${activity.id} has at least two steps`, activity.steps.length >= 2, activity.steps.length);
+        const isOrb = orbActivities.some(({ id }) => id === activity.id);
+        check(`${activity.id} has the expected step structure`, isOrb ? activity.steps.length === 1 : activity.steps.length >= 2, activity.steps.length);
         check(`${activity.id} has a positive duration`, activity.durationSeconds > 0, activity.durationSeconds);
         check(`${activity.id} declares its own kind`, activity.kind === kind, activity.kind);
 

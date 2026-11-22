@@ -1,7 +1,6 @@
-import { StyleSheet, View } from 'react-native';
+import { StyleSheet, Text, View } from 'react-native';
 
 import { Screen } from '@/components/layout/screen';
-import { ComingSoonNote } from '@/components/settings/coming-soon-note';
 import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
 import { Header } from '@/components/ui/header';
@@ -22,12 +21,9 @@ export default function LanguageSettingsScreen() {
   return (
     <Screen>
       <Header title="Language" />
+      <Text style={{ color: theme.textSecondary }}>{language === 'kn' ? 'ಮುಖಪುಟ ಮತ್ತು ವ್ಯಾಯಾಮ ಪಟ್ಟಿಗೆ ಕನ್ನಡ ಲಭ್ಯವಿದೆ. ಮಾರ್ಗದರ್ಶನ ಇಂಗ್ಲಿಷ್‌ನಲ್ಲಿದೆ.' : 'Applies to Home and the exercise list. Session coaching is in English.'}</Text>
 
-      {/* Retained for test assertions */}
-      <View style={{ display: 'none' }}>
-        <InfoRow label="Current language" value="English" emphasize stacked />
-        <ComingSoonNote title="Additional regional dialects are not available yet" />
-      </View>
+      <InfoRow label="Current language" value={LANGUAGE_OPTIONS.find((option) => option.value === language)?.label ?? 'English'} emphasize stacked />
 
       <Card variant="surface" gap={Spacing.two}>
         {LANGUAGE_OPTIONS.map((option, index) => (
@@ -41,11 +37,7 @@ export default function LanguageSettingsScreen() {
               style={styles.row}
               right={
                 language === option.value ? (
-                  <Button
-                    variant="outline"
-                    title={language === 'kn' ? 'ಆಯ್ಕೆಮಾಡಲಾಗಿದೆ' : 'Selected'}
-                    size="medium"
-                  />
+                  <Text style={{ color: theme.text }}>{language === 'kn' ? 'ಆಯ್ಕೆಮಾಡಲಾಗಿದೆ' : 'Selected'}</Text>
                 ) : null
               }
             />

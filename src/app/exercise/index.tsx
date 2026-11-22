@@ -1,3 +1,4 @@
+import { exerciseVideos } from '@/data/exercise-videos';
 import { useRouter } from 'expo-router';
 import { SymbolView } from 'expo-symbols';
 import { useVideoPlayer, VideoView } from 'expo-video';
@@ -14,20 +15,8 @@ import { exercisesCatalog, Exercise } from '@/data/exercises';
 import { useLanguage } from '@/hooks/use-language';
 import { useTheme } from '@/hooks/use-theme';
 
-const VIDEO_MAP: Record<string, string> = {
-  'seated-knee-extension': '/videos/seated-knee-extension.mp4',
-  'seated-arm-raise': '/videos/seated-arm-raise.mp4',
-  'sit-to-stand': '/videos/sit-to-stand.mp4',
-};
-
-const LOCAL_VIDEOS: Record<string, any> = {
-  'seated-knee-extension': require('../../../assets/video/Seated knee extension.mp4'),
-  'seated-arm-raise': require('../../../assets/video/seated arm raise.mp4'),
-  'sit-to-stand': require('../../../assets/video/sit-to-stand.mp4'),
-};
-
 function NativeExerciseVideo({ exerciseId }: { exerciseId: string }) {
-  const source = LOCAL_VIDEOS[exerciseId] || LOCAL_VIDEOS['seated-knee-extension'];
+  const source = exerciseVideos[exerciseId];
   const player = useVideoPlayer(source, (p) => {
     p.loop = true;
     p.play();
@@ -75,12 +64,11 @@ export default function ExerciseScreen() {
     setPreviewExercise(null);
     // Direct start into the camera session:
     router.push(`/exercise/session?id=${exercise.id}`);
-    // Code reference retained for test suite integrity:
-    // router.push(`/exercise/${exercise.id}`)
   };
 
   const getLocalizedName = (exercise: Exercise) => {
     if (language === 'kn') {
+      if (exercise.kannada) return exercise.kannada.name;
       if (exercise.id === 'seated-knee-extension') return t('seatedKneeExtension');
       if (exercise.id === 'seated-arm-raise') return t('seatedArmRaise');
       if (exercise.id === 'sit-to-stand') return t('sitToStand');
@@ -100,7 +88,9 @@ export default function ExerciseScreen() {
           const metaConfig = EXERCISE_TARGET_LABELS[exercise.id];
           const targetMeta = metaConfig
             ? language === 'kn' ? metaConfig.kn : metaConfig.en
-            : `${exercise.target} • 3 sets`;
+             : language === 'kn'
+              ? `${exercise.kannada?.target ?? exercise.target} • 3 ಸೆಟ್‌ಗಳು (ತಲಾ 10)`
+              : `${exercise.target} • 3 sets of 10 ${exercise.countUnit === 'step' ? 'steps' : 'reps'}`;
 
           return (
             <Card
@@ -146,7 +136,10 @@ export default function ExerciseScreen() {
                 </View>
 
                 <View style={styles.buttonRow}>
-                  {/* 1. Preview Video Button */}
+                  {exerciseVideos[exercise.id] === undefined ? (
+                    <Button variant="secondary" title={language === 'kn' ? 'ಸೂಚನೆಗಳು' : 'Instructions'}
+                      onPress={() => router.push({ pathname: '/exercise/[id]', params: { id: exercise.id } })} />
+                  ) : (
                   <Pressable
                     accessibilityRole="button"
                     onPress={() => setPreviewExercise(exercise)}
@@ -162,6 +155,7 @@ export default function ExerciseScreen() {
                       {language === 'kn' ? t('preview') : 'Watch demo'}
                     </Text>
                   </Pressable>
+                  )}
 
                   {/* 2. Direct Start Hero Ember Button */}
                   <Pressable
@@ -221,7 +215,7 @@ export default function ExerciseScreen() {
               <View style={styles.videoWrapper}>
                 {Platform.OS === 'web' ? (
                   <video
-                    src={VIDEO_MAP[previewExercise.id]}
+                    src={exerciseVideos[previewExercise.id]}
                     controls
                     autoPlay
                     loop

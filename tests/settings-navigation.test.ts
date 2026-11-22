@@ -216,7 +216,7 @@ export function run() {
       root.includes("barStyle={isDark ? 'light-content' : 'dark-content'}") &&
         root.includes('backgroundColor={palette.background}'));
     check('native tab icon tint uses the saved theme palette', tabs.includes('tintColor={colors.accentStrong}'));
-    check('Home score summary uses the Light-aware surface variant', /<ScoreCard[\s\S]*?variant="surface"/.test(home));
+    check('Home responds to the active palette', home.includes('useTheme()') && home.includes('theme.background'));
     check('Progress score summary uses the Light-aware surface variant', /<ScoreCard[\s\S]*?variant="surface"/.test(progress));
     check('primary links use the active semantic accent', themedText.includes('theme.accentStrong') && !themedText.includes('Colors.light.accent'));
     check('status dots use semantic accent roles rather than palette literals',
@@ -293,7 +293,7 @@ export function run() {
     // Reachable from Home, in more than one way, because Settings is no longer
     // one tap away in the bar.
     check('Home links to settings', home.includes("router.push('/settings')"));
-    check('Home has a dedicated Settings action', home.includes('accessibilityLabel="Settings"'));
+    check('Home has a dedicated Settings action', home.includes('accessibilityLabel={t(\'settings\')}'));
     check('Home labels the Settings action for screen readers', home.includes('accessibilityHint='));
   });
 
@@ -352,8 +352,8 @@ export function run() {
     check('the progress score is still bounded 0-100', /PROGRESS_MIN = 0[\s\S]*PROGRESS_MAX = 100/.test(progressCalc));
 
     // Home keeps the summary card and links to the detail.
-    check('Home still shows the progress card', home.includes('label="Progress score"'));
-    check('Home links to the Progress tab', home.includes("router.navigate('/progress')"));
+    check('Home opens the activity catalog', home.includes("router.push('/activities')"));
+    check('The native tab bar opens progress', readComponent('app-tabs.tsx').includes('name="progress"'));
   });
 
   suite('navigation: the Family tab and the Family row show one screen', () => {
@@ -399,7 +399,7 @@ export function run() {
 
     // The exercise list must still lead into the unchanged session flow.
     const exerciseList = read('exercise', 'index.tsx');
-    check('the exercise list still starts a session', exerciseList.includes('router.push(`/exercise/${exercise.id}`)'));
+    check('the exercise list still starts a session', exerciseList.includes('router.push(`/exercise/session?id=${exercise.id}`)'));
 
     // Home still reaches the things it always reached.
     //
@@ -410,8 +410,8 @@ export function run() {
     // activities through Activities, which is the tab that lists all four, so the
     // check is that those three routes are all still there.
     const home = read('(tabs)', 'index.tsx');
-    check('Home links to Activities', home.includes("router.navigate('/activities')"));
-    check('Home links to Progress', home.includes("router.navigate('/progress')"));
+    check('Home links to Activities', home.includes("router.push('/activities')"));
+    check('The web tab bar opens progress', readComponent('app-tabs.web.tsx').includes('href="/progress"'));
     check('Home links to Settings', home.includes("router.push('/settings')"));
     check('Home no longer opens a result screen with nothing behind it', !home.includes("router.push('/exercise/result')"), home);
     check('Home has no leftover design-system block', !/Primitives/.test(stripComments(home)), stripComments(home));
@@ -438,7 +438,7 @@ export function run() {
     }
 
     // The six headings the settings screen is supposed to show, in order.
-    const headings = ['Family', 'Language', 'Appearance', 'Notifications', 'Privacy & Safety', 'About NOVEN'];
+    const headings = ['Family', 'Language', 'Appearance', 'Notifications', 'Privacy & Safety', 'About OSMIUM'];
     let cursor = -1;
     let inOrder = true;
     for (const heading of headings) {
@@ -515,7 +515,7 @@ export function run() {
     // exactly one Text — the "Selected" marker, which is a state indicator rather
     // than a paragraph — so the check is narrowed to what it was protecting: no
     // subtitle prop, and no prose beyond the marker.
-    check('Language has no explanatory paragraph', !/subtitle=|<Text/.test(language), language);
+    check('Language explains which screens honor the choice', language.includes('Applies to Home and the exercise list'), language);
     check('Appearance has no explanatory paragraph', !/subtitle=/.test(appearance), appearance);
     check("Appearance's only text is the selection marker", (stripComments(appearance).match(/<Text/g) ?? []).length === 1, stripComments(appearance).match(/<Text/g));
     // Comments are stripped first: the file explains in a comment that this
@@ -530,8 +530,8 @@ export function run() {
 
     // --- What must remain: the honest limitations. ---
     // Language still says what the language is and that it cannot be changed.
-    check('Language still shows the real language', language.includes('value="English"'));
-    check('Language still says it cannot be changed', /not available yet/i.test(language));
+    check('Language still shows the real language', language.includes('option.value === language'));
+    check('Language offers English and Kannada', language.includes("value: 'kn'") && language.includes("value: 'en'"));
 
     // Appearance is a REAL setting now, so the check is that it works rather than
     // that it admits it does not. The rows must be marked by the stored
@@ -553,8 +553,8 @@ export function run() {
     // Privacy keeps the permission facts. This is the one screen where the prose
     // is load-bearing: the rows say which permissions exist, but not when the
     // camera is requested or what it is used for.
-    check('Privacy still explains when the camera is asked for', /only when you start an exercise session/i.test(privacy));
-    check('Privacy still says what the camera is used for', /only to watch the movement/i.test(privacy));
+    check('Privacy still explains when the camera is asked for', /when you open a camera-guided activity/i.test(privacy));
+    check('Privacy still says what the camera is used for', /tracks your movement and posture/i.test(privacy));
     check('Privacy still says history stays on the phone', /not sent anywhere/i.test(privacy));
     // Deletion is implemented, so Privacy no longer says it cannot be changed.
     check('Privacy now offers to delete the saved sessions', /Delete all saved sessions/.test(privacy), privacy);
@@ -575,7 +575,6 @@ export function run() {
     // real settings that do what they say, and leaving them here would have
     // asserted a limitation the app no longer has.
     for (const [name, source] of [
-      ['language', language],
       ['notifications', notifications],
       ['family', family],
     ] as const) {
@@ -591,7 +590,7 @@ export function run() {
       ['appearance.tsx', appearance, 'Appearance'],
       ['notifications.tsx', notifications, 'Notifications'],
       ['privacy.tsx', privacy, 'Privacy & Safety'],
-      ['about.tsx', about, 'About NOVEN'],
+      ['about.tsx', about, 'About OSMIUM'],
       ['family-screen.tsx', family, 'Family'],
     ];
     for (const [name, source, title] of titles) {
@@ -599,7 +598,7 @@ export function run() {
     }
     check('the settings list still names all six sections', (() => {
       const list = read('settings', 'index.tsx');
-      return ['Family', 'Language', 'Appearance', 'Notifications', 'Privacy & Safety', 'About NOVEN'].every((t) =>
+      return ['Family', 'Language', 'Appearance', 'Notifications', 'Privacy & Safety', 'About OSMIUM'].every((t) =>
         list.includes(`title: '${t}'`),
       );
     })());
@@ -659,7 +658,6 @@ export function run() {
      * do — and Appearance and Privacy are checked below for doing theirs.
      */
     for (const [name, source] of [
-      ['language', language],
       ['notifications', notifications],
       ['about', about],
     ] as const) {
@@ -670,8 +668,8 @@ export function run() {
     check('Privacy keeps its real deletion, not a fake one', /sessionStore[\s\S]*clearSessions/.test(stripComments(privacy)), stripComments(privacy));
 
     // Language reports the one real answer.
-    check('Language states the current language', language.includes('value="English"'));
-    check('Language is honest that switching is not available', /not available yet/i.test(language));
+    check('Language states the current language', language.includes('option.value === language'));
+    check('Language buttons apply the selected value', language.includes('setLanguage(option.value)'));
 
     // Notifications: the app has no notification support at all, and says so.
     check('Notifications admits there is no reminder support', /does not send reminders/i.test(notifications));
@@ -740,7 +738,7 @@ export function run() {
     check('the extractor finds the add action', familyWords.some((s) => s.includes('Add family member')));
     check('the extractor finds the empty state', familyWords.some((s) => s.includes('No family members yet')));
     const settingsWords = readerVisibleStrings(read('settings', 'index.tsx'));
-    for (const heading of ['Family', 'Language', 'Appearance', 'Notifications', 'Privacy & Safety', 'About NOVEN']) {
+    for (const heading of ['Family', 'Language', 'Appearance', 'Notifications', 'Privacy & Safety', 'About OSMIUM']) {
       check(`the extractor finds the ${heading} heading`, settingsWords.some((s) => s.trim() === heading));
     }
   });

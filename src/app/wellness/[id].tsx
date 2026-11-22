@@ -1,6 +1,6 @@
 import { useLocalSearchParams } from 'expo-router';
 
-import { findGuidedActivityInKind } from '@/activities/catalog';
+import { guidedCatalog, findGuidedActivityInKind } from '@/activities/catalog';
 import { GuidedActivityScreen } from '@/components/guided/guided-activity-screen';
 import { GuidedNotFound } from '@/components/guided/guided-not-found';
 
@@ -10,6 +10,10 @@ import { GuidedNotFound } from '@/components/guided/guided-not-found';
  * A route file with no wording of its own: the screen is the one every guided
  * activity runs on, and the timer, the steps, and the result all come from it.
  */
+export function generateStaticParams() {
+  return guidedCatalog('wellness').map(({ id }) => ({ id }));
+}
+
 export default function WellnessActivityScreen() {
   const { id } = useLocalSearchParams<{ id?: string }>();
   const activity = findGuidedActivityInKind('wellness', id);

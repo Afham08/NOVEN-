@@ -42,6 +42,9 @@ export default function PrivacySafetyScreen() {
   const router = useRouter();
 
   const [count, setCount] = useState<number | null>(null);
+  const [unreadable, setUnreadable] = useState(false);
+  const [confirming, setConfirming] = useState(false);
+  const [deleteError, setDeleteError] = useState(false);
   const [clearing, setClearing] = useState(false);
 
   /**
@@ -52,8 +55,10 @@ export default function PrivacySafetyScreen() {
    */
   useEffect(() => {
     let active = true;
-    void sessionStore.getSessions().then((records) => {
-      if (active) setCount(records.length);
+    void sessionStore.getSessionsResult().then((result) => {
+      if (!active) return;
+      setUnreadable(result.status !== 'loaded');
+      if (result.status !== 'error') setCount(result.records.length);
     });
     return () => {
       active = false;
@@ -62,11 +67,15 @@ export default function PrivacySafetyScreen() {
 
   const clear = useCallback(() => {
     if (clearing) return;
+    setDeleteError(false);
     setClearing(true);
     void sessionStore
       .clearSessions()
       .then(() => {
         setCount(0);
+        setUnreadable(false);
+        setConfirming(false);
+        setClearing(false);
         /*
          * Progress reads from the same store, and the tab below has no way to be
          * told a write happened. Going back to it after a deletion is what makes
@@ -75,7 +84,7 @@ export default function PrivacySafetyScreen() {
          */
         router.push('/progress');
       })
-      .catch(() => setClearing(false));
+      .catch(() => { setClearing(false); setDeleteError(true); });
   }, [clearing, router]);
 
   return (
@@ -98,8 +107,7 @@ export default function PrivacySafetyScreen() {
       */}
       <Card variant="sage" gap={Spacing.two}>
         <Text style={[styles.explain, { color: theme.text }]}>
-          OSMIUM asks for camera access only when you start an exercise session,
-          and only to watch the movement. Your saved sessions stay on this phone
+          OSMIUM asks for camera access when you open a camera-guided activity or enable a meditation posture check. The camera tracks your movement and posture. Your saved sessions stay on this phone
           and are not sent anywhere.
         </Text>
       </Card>
@@ -110,7 +118,7 @@ export default function PrivacySafetyScreen() {
           stacked
           label="Saved sessions on this phone"
           value={
-            count === null
+            unreadable ? 'History could not be fully read' : count === null
               ? 'Counting…'
               : count === 0
                 ? 'None saved'
@@ -119,11 +127,13 @@ export default function PrivacySafetyScreen() {
         />
         <Button
           variant="destructive"
-          title="Delete all saved sessions"
+          title={confirming ? "Confirm permanent deletion" : "Delete all saved sessions"}
           loading={clearing}
-          disabled={count === null || count === 0}
-          onPress={clear}
+          disabled={!unreadable && (count === null || count === 0)}
+          onPress={confirming ? clear : () => { setDeleteError(false); setConfirming(true); }}
         />
+        {confirming && <Button variant="outline" title="Cancel" disabled={clearing} onPress={() => setConfirming(false)} />}
+        {deleteError && <Text style={{ color: theme.danger }}>Deletion failed. Please try again.</Text>}
         {/*
           Named, not generic. "Delete everything" on a screen that also holds
           permissions would be an overclaim — the camera permission stays granted

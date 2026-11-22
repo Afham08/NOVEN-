@@ -8,6 +8,9 @@
     "scheme": "noven",
     "userInterfaceStyle": "automatic",
     "ios": {
+      "infoPlist": {
+        "NSCameraUsageDescription": "OSMIUM uses the camera to track your movement during a session."
+      },
       "icon": "./assets/expo.icon"
     },
     "android": {

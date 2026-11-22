@@ -36,6 +36,10 @@ function straightLeftLeg(): LandmarkEventPayload[] {
 }
 
 export function run(): void {
+  suite('angle measurements use camera pixel geometry', () => {
+    almostEqual(calculateAngle({ x: 0.5, y: 0 }, { x: 0, y: 0 }, { x: 0.5, y: 2 / 3 }, 4 / 3), 45);
+    check('coincident joints have no measurable angle', Number.isNaN(calculateAngle({ x: 0, y: 0 }, { x: 0, y: 0 }, { x: 1, y: 1 })));
+  });
   suite('pose-utils getLandmark', () => {
     const landmarks = bentLeftLeg();
 
