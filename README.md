@@ -7,24 +7,13 @@
 
 
 
-# to run on pc 
-```
-npx expo start --web
-```
+## Run locally
 
-# to run on mobile 
-```
-npx expo start --go --tunnel
+Install the locked dependencies with `npm ci`. Run `npm run web` for the browser app.
+Open the URL printed by Expo. Camera tracking requires localhost or HTTPS.
 
-```
->also to run on phone browswer
-```
-https://oygsqh0-anonymous-8081.exp.direct
-```
-# to compile on pc to phone(connect phone through usb cable)
-```
-npx expo run:android
+For Android camera tracking with the bundled model, connect an Android device and
+run `npm run android` with the Android SDK and JDK installed. Browser and WebView
+tracking need network access on first use to load MediaPipe.
 
-```
-
->also needs java 17 and android sdk on pc (also a good pc)
+Run `npm run lint`, `npx tsc --noEmit`, and `npm test` to verify a checkout.

@@ -28,6 +28,13 @@ function cleanRep(t0: number): RepFrame[] {
 }
 
 export function run(): void {
+  suite('flexion counts one decreasing-angle cycle', () => {
+    const detector = new RepDetector({ ...THRESHOLDS, bentAngleDeg: 100, extendedAngleDeg: 70 });
+    for (const [i, angle] of [110, 100, 80, 65, 65, 85, 90, 110, 110].entries()) {
+      detector.process({ angle, timestampMs: 1000 + i * 100 });
+    }
+    check('fold and return count once', detector.completedReps === 1);
+  });
   suite('rep-detector timed hold', () => {
     const timed = { ...THRESHOLDS, minExtendedHoldMs: 3000 };
     const early = new RepDetector(timed);

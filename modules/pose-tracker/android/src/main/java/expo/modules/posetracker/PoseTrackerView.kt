@@ -56,6 +56,8 @@ class PoseTrackerView(
   appContext: AppContext
 ) : ExpoView(context, appContext) {
 
+  private var boundPreview: Preview? = null
+  private var ownedUseCases = emptyArray<androidx.camera.core.UseCase>()
   private val previewView = PreviewView(context).apply {
     // TextureView-based preview renders reliably inside the React Native view
     // hierarchy (SurfaceView can be layered behind the React surface and show
@@ -249,7 +251,8 @@ class PoseTrackerView(
           null
         }
 
-        cameraProvider.unbindAll()
+        boundPreview = preview
+        ownedUseCases = listOfNotNull(preview, analysis).toTypedArray()
         logPreviewViewHierarchy("before-bind")
         logPreviewViewChildren("before-bind")
         val camera = if (analysis != null) {
@@ -692,25 +695,10 @@ class PoseTrackerView(
       val vw = child.width
       val vh = child.height
       if (vw <= 0 || vh <= 0) continue
-      // Camera pipeline:
-      //  - CameraX preview uses a 1600x1200 (landscape) SurfaceTexture buffer
-      //    ([DIAG-SFC] request resolution=1600x1200).
-      //  - The SurfaceTexture transform matrix is a pure 90-degree rotation
-      //    (stMatrix [0,-1,1,0]), so the displayed source is effectively
-      //    PORTRAIT 1200 wide x 1600 tall (aspect 0.75).
-      //  - The TextureView quad is the card: 992 wide x 715 tall (aspect 1.39).
-      // A 1:1 mapping pulls the portrait frame apart horizontally (faces wider).
-      // Apply the uniform center-crop math:
-      //    scale    = max(viewW/sourceW, viewH/sourceH)     (uniform source scale)
-      //    contentW = sourceW*scale, contentH = sourceH*scale
-      //    tx = (viewW - contentW)/2, ty = (viewH - contentH)/2
-      // For this card: scale = max(992/1200, 715/1600) = 0.82667, content = 992x1322.7,
-      // tx = 0, ty = -303.83 -> fill width, crop top/bottom, same pixel density on
-      // both axes (natural aspect), no black bars. The TextureView quad already
-      // stretches the source onto (viewW x viewH), so project the crop back into
-      // view-space factors: scaleX = contentW/vw, scaleY = contentH/vh.
-      val sourceW = 1200f
-      val sourceH = 1600f
+      val info = boundPreview?.resolutionInfo ?: continue
+      val rotated = info.rotationDegrees % 180 != 0
+      val sourceW = (if (rotated) info.resolution.height else info.resolution.width).toFloat()
+      val sourceH = (if (rotated) info.resolution.width else info.resolution.height).toFloat()
       val scale = maxOf(vw / sourceW, vh / sourceH)
       val contentW = sourceW * scale
       val contentH = sourceH * scale
@@ -822,15 +810,18 @@ class PoseTrackerView(
       providerFuture.addListener(
         {
           try {
-            providerFuture.get().unbindAll()
+            providerFuture.get().unbind(*ownedUseCases)
             Log.i(TAG, "CameraX use cases unbound on view disposal.")
           } catch (e: Exception) {
             Log.w(TAG, "Failed to unbind camera on disposal: ${e.message}")
+          } finally {
+            surfaceFutureExecutor.shutdown()
           }
         },
         ContextCompat.getMainExecutor(context)
       )
     } catch (e: Exception) {
+      surfaceFutureExecutor.shutdown()
       Log.w(TAG, "Could not request camera unbind on disposal: ${e.message}")
     }
 

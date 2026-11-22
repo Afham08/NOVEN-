@@ -28,14 +28,16 @@ export function getLandmark(
  * rejected downstream by RepDetector and the readiness gate, so failing here
  * keeps garbage out of the rep cycle and out of the knee-range metric.
  */
-export function calculateAngle(a: Point2D, b: Point2D, c: Point2D): number {
+export function calculateAngle(a: Point2D, b: Point2D, c: Point2D, aspectRatio = 1): number {
   if (!a || !b || !c) return Number.NaN;
   if (!Number.isFinite(a.x) || !Number.isFinite(a.y)) return Number.NaN;
   if (!Number.isFinite(b.x) || !Number.isFinite(b.y)) return Number.NaN;
   if (!Number.isFinite(c.x) || !Number.isFinite(c.y)) return Number.NaN;
 
+  if ((a.x === b.x && a.y === b.y) || (c.x === b.x && c.y === b.y)) return Number.NaN;
+
   const radAnglePq =
-    Math.atan2(c.y - b.y, c.x - b.x) - Math.atan2(a.y - b.y, a.x - b.x);
+    Math.atan2(c.y - b.y, (c.x - b.x) * aspectRatio) - Math.atan2(a.y - b.y, (a.x - b.x) * aspectRatio);
   let degrees = Math.abs((radAnglePq * 180) / Math.PI);
   if (degrees > 180) degrees = 360 - degrees;
   return degrees;
@@ -49,6 +51,7 @@ export function angleFromTriplet(
   landmarks: LandmarkEventPayload[],
   triplet: AngleTriplet,
   minVisibility: number,
+  aspectRatio = 1,
 ): number {
   const hip = getLandmark(landmarks, triplet.hip);
   const knee = getLandmark(landmarks, triplet.knee);
@@ -59,5 +62,6 @@ export function angleFromTriplet(
     return Number.NaN;
   }
 
-  return calculateAngle(hip, knee, ankle);
+  const reference = triplet.relativeToVertical ? { x: knee.x, y: knee.y - 1 } : ankle;
+  return calculateAngle(hip, knee, reference, aspectRatio);
 }

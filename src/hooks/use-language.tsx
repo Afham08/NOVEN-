@@ -1,5 +1,5 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import React, { createContext, useContext, useEffect, useState, useMemo } from 'react';
+import React, { createContext, useContext, useEffect, useState, useMemo, useRef } from 'react';
 
 export type Language = 'en' | 'kn';
 
@@ -97,15 +97,19 @@ const STORAGE_KEY = '@noven_language_preference';
 export function LanguageProvider({ children }: { children: React.ReactNode }) {
   const [language, setLanguageState] = useState<Language>('en');
 
+  const userSelected = useRef(false);
   useEffect(() => {
+    let active = true;
     AsyncStorage.getItem(STORAGE_KEY).then((saved) => {
-      if (saved === 'en' || saved === 'kn') {
+      if (active && !userSelected.current && (saved === 'en' || saved === 'kn')) {
         setLanguageState(saved);
       }
     }).catch(() => {});
+    return () => { active = false; };
   }, []);
 
   const setLanguage = (lang: Language) => {
+    userSelected.current = true;
     setLanguageState(lang);
     AsyncStorage.setItem(STORAGE_KEY, lang).catch(() => {});
   };

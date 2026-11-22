@@ -192,6 +192,16 @@ function storedIds(data: Record<string, string>): string[] {
 }
 
 export function run(): void {
+  suite('a second web tab preserves deletions from the first', async () => {
+    const { store } = immediateStore();
+    const first = createSessionStore(store, { shared: true });
+    const second = createSessionStore(store, { shared: true });
+    await first.saveSession(record('old', '2026-09-01T00:00:00Z'));
+    await second.getSessions();
+    await first.clearSessions();
+    await second.saveSession(record('new', '2026-09-02T00:00:00Z'));
+    check('only the new session remains', (await first.getSessions()).map(r => r.id).join() === 'new');
+  });
   suite('session store: a clear cannot be undone by a read already in flight', async () => {
     /*
      * The interleaving, forced step by step:

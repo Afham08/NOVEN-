@@ -1,10 +1,14 @@
 import { useLocalSearchParams } from 'expo-router';
 
 import { orbSessions } from '@/activities/orb-rhythm';
-import { findGuidedActivityInKind } from '@/activities/catalog';
+import { guidedCatalog, findGuidedActivityInKind } from '@/activities/catalog';
 import { GuidedActivityScreen } from '@/components/guided/guided-activity-screen';
 import { OrbMeditation } from '@/components/guided/orb-meditation';
 import { GuidedNotFound } from '@/components/guided/guided-not-found';
+
+export function generateStaticParams() {
+  return guidedCatalog('meditation').map(({ id }) => ({ id }));
+}
 
 export default function MeditationSessionScreen() {
   const { id } = useLocalSearchParams<{ id?: string }>();

@@ -1,3 +1,4 @@
+import { orbActivities } from './orb-rhythm';
 import { meditationSessions } from './meditation';
 import {
   GUIDED_ACTIVITY_KINDS,
@@ -20,7 +21,7 @@ import { yogaRoutines } from './yoga';
  */
 export const BY_KIND: Readonly<Record<GuidedActivityKind, readonly GuidedActivity[]>> = {
   yoga: yogaRoutines,
-  meditation: meditationSessions,
+  meditation: [...orbActivities, ...meditationSessions],
   wellness: wellnessActivities,
 };
 

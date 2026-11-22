@@ -201,7 +201,8 @@ export class SessionEngine {
       };
     }
 
-    const { timestampMs, presence, landmarks } = event.nativeEvent;
+    const { timestampMs, presence, landmarks, imageWidth, imageHeight } = event.nativeEvent;
+    const aspectRatio = imageWidth > 0 && imageHeight > 0 ? imageWidth / imageHeight : 1;
     const left = this.detectors.left;
     const right = this.detectors.right;
 
@@ -229,7 +230,7 @@ export class SessionEngine {
     // enabled, and refuse it if the tracked joints are not in the rest regime.
     // Evaluated only here (never per frame) because a genuine rep deliberately
     // leaves that regime when the knee extends. See ReadinessConfig.
-    if (outcome.becameReady && !this.restingPostureSatisfied(landmarks)) {
+    if (outcome.becameReady && !this.restingPostureSatisfied(landmarks, aspectRatio)) {
       this.shortHoldUntilMs = 0;
       this.gate.markLost();
       this.activeFrameTimestampMs = null;
@@ -259,6 +260,7 @@ export class SessionEngine {
         landmarks,
         this.config.triplets[side],
         this.config.thresholds.minVisibility,
+        aspectRatio,
       );
       // Requirement C: a non-finite angle never reaches a detector and never
       // widens the observed range.
@@ -406,7 +408,7 @@ export class SessionEngine {
    * `bentAngleDeg` is the boundary the config already defines as "bent/at rest";
    * no new threshold is introduced.
    */
-  private restingPostureSatisfied(landmarks: LandmarkEventPayload[]): boolean {
+  private restingPostureSatisfied(landmarks: LandmarkEventPayload[], aspectRatio: number): boolean {
     if (!this.config.readiness.requireRestingPosture) return true;
     const { minVisibility, bentAngleDeg } = this.config.thresholds;
     const trustworthySides: Side[] = [];
@@ -425,8 +427,8 @@ export class SessionEngine {
 
     // Every trustworthy side must satisfy the resting posture.
     return trustworthySides.every((side) => {
-      const angle = angleFromTriplet(landmarks, this.config.triplets[side], minVisibility);
-      return Number.isFinite(angle) && angle <= bentAngleDeg;
+      const angle = angleFromTriplet(landmarks, this.config.triplets[side], minVisibility, aspectRatio);
+      return Number.isFinite(angle) && (this.config.thresholds.extendedAngleDeg < bentAngleDeg ? angle >= bentAngleDeg : angle <= bentAngleDeg);
     });
   }
 

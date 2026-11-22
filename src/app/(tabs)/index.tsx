@@ -38,7 +38,7 @@ export default function HomeScreen() {
             style={[styles.settings, { backgroundColor: theme.glass, borderColor: theme.glassBorder }]}>
             <SymbolView name={{ ios: dark ? 'sun.max' : 'moon', android: dark ? 'light_mode' : 'dark_mode', web: dark ? 'light_mode' : 'dark_mode' }} size={24} tintColor={theme.text} />
           </Pressable>
-          <Pressable accessibilityRole="button" accessibilityLabel={t('settings')} onPress={() => router.push('/settings')}
+          <Pressable accessibilityRole="button" accessibilityLabel={t('settings')} accessibilityHint={kn ? 'ಸೆಟ್ಟಿಂಗ್‌ಗಳನ್ನು ತೆರೆಯಿರಿ' : 'Open settings'} onPress={() => router.push('/settings')}
             style={({ pressed }) => [styles.settings, { backgroundColor: theme.glass, borderColor: theme.glassBorder, opacity: pressed ? 0.6 : 1 }]}>
             <SymbolView name={{ ios: 'gearshape', android: 'settings', web: 'settings' }} size={24} tintColor={theme.text} />
           </Pressable>

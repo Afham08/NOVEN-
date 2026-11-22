@@ -14,7 +14,7 @@ export function ActivityCard({ title, description, meta, icon, tint, rightLabel,
   const theme = useTheme();
   return (
     <Pressable accessibilityRole="button" accessibilityState={{ disabled: Boolean(disabled) }} disabled={disabled}
-      style={({ pressed, hovered }) => [styles.card, { backgroundColor: theme.activityGlass,
+      style={({ pressed, hovered }: { pressed: boolean; hovered?: boolean }) => [styles.card, { backgroundColor: theme.activityGlass,
         borderColor: hovered ? theme.accentStrong : theme.activityGlassBorder,
         boxShadow: `0 8px 24px ${theme.activityShadow}`,
         shadowColor: theme.activityShadow,

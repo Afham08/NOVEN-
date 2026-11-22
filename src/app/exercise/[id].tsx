@@ -9,12 +9,16 @@ import { Header } from '@/components/ui/header';
 import { SectionHeader } from '@/components/ui/section-header';
 import { Spacing, Type } from '@/constants/theme';
 import { describeDifficulty } from '@/data/exercise-format';
-import { formatDuration, getExerciseById } from '@/data/exercises';
+import { exercisesCatalog, formatDuration, getExerciseById } from '@/data/exercises';
 import { formatConsistencyLabel, formatDurationLabel, formatPaceLabel, formatRangeLabel } from '@/exercise/metrics';
 import { isPoseTracked } from '@/exercise/pose-configs';
 import type { SessionRecord } from '@/exercise/session-store';
 import { sessionStore } from '@/exercise/session-storage';
 import { useTheme } from '@/hooks/use-theme';
+
+export function generateStaticParams() {
+  return exercisesCatalog.map(({ id }) => ({ id }));
+}
 
 export default function ExerciseDetailScreen() {
   const { id } = useLocalSearchParams<{ id?: string }>();

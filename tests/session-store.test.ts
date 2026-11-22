@@ -713,7 +713,6 @@ export function run(): void {
     check('Progress displays the shared load issue and supplies one record list to History',
       progressScreen.includes('<SessionHistoryLoadNotice issue={issue} onRetry={retry} />') &&
         progressScreen.includes('loadedRecords={records}'));
-    check('Home also makes failed progress reads visible with retry',
-      homeScreen.includes('<SessionHistoryLoadNotice issue={issue} onRetry={retry} />'));
+    check('Home can open without reading session history', !homeScreen.includes('useProgress(') && !homeScreen.includes('sessionStore.'));
   });
 }

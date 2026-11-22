@@ -9,7 +9,7 @@
 
 Physical therapy and guided rehabilitation require consistent form and precise repetition counting to prevent injury and promote recovery. While modern computer vision techniques offer promising feedback mechanisms, existing consumer applications frequently rely on streaming user video frames to remote cloud servers, introducing latency bottlenecks, dependency on constant internet connectivity, and severe user privacy violations. 
 
-**NOVEN** is a universal, privacy-first mobile application developed with **React Native**, **Expo Router**, and **TypeScript**. It incorporates an on-device Android native module powered by **Google MediaPipe** and **Android CameraX** to track 33 3D body landmark coordinates at 30+ frames per second without transmitting camera data over a network. Joint angles (e.g., knee and hip flexion) are computed in real time using vector trigonometry, while repetitions and posture adherence are tracked via a hysteresis-based finite state machine (FSM). Hands-free feedback is delivered through real-time speech synthesis (`expo-speech`), and workout history is persisted locally in offline storage (`AsyncStorage`). The application has been validated against 520 automated test suites with 4,880 assertions and complies with strict zero-warning linting standards.
+**NOVEN** is a universal, privacy-first mobile application developed with **React Native**, **Expo Router**, and **TypeScript**. It incorporates an on-device Android native module powered by **Google MediaPipe** and **Android CameraX** to track 33 3D body landmark coordinates with pose events capped at 10 per second without transmitting camera data over a network. Joint angles (e.g., knee and hip flexion) are computed in real time using vector trigonometry, while repetitions and posture adherence are tracked via a hysteresis-based finite state machine (FSM). Hands-free feedback is delivered through real-time speech synthesis (`expo-speech`), and workout history is persisted locally in offline storage (`AsyncStorage`). The test suite covers movement detection, session persistence, and navigation.
 
 ---
 
@@ -132,7 +132,7 @@ The codebase was subjected to rigorous verification:
 | :--- | :--- | :--- |
 | **Linting & Code Style** | ESLint (`npx expo lint`) | **0 Errors, 0 Warnings** |
 | **Static Type Checking** | TypeScript Compiler (`npx tsc --noEmit`) | **0 Errors (Strict Mode)** |
-| **Automated Unit Tests** | Custom Test Harness (`npm test`) | **520 Suites Passed, 4,880 Checks (100% Pass Rate)** |
+| **Automated Unit Tests** | Custom Test Harness (`npm test`) | Run the current checkout to obtain its suite and assertion counts. |
 | **Encoding Validation** | UTF-8 Mojibake Scanner | **0 Encoding Glitches** |
 | **Platform Compatibility** | Android Native & Web static bundles | **Verified** |
 
@@ -140,9 +140,9 @@ The codebase was subjected to rigorous verification:
 
 ## 7. Results & Discussion
 
-1. **Inference Latency**: Average on-device inference latency ranges between 28ms and 36ms on standard mid-range Android chipsets, providing a smooth 30 FPS feedback loop.
-2. **Memory Footprint**: Heap allocation remains below 95 MB during active camera sessions; native CameraX sensors and MediaPipe buffers are synchronously released when unmounted.
-3. **Zero Network Egress**: Packet inspection during session execution confirms zero network payload transmission during workouts, achieving absolute biometric data privacy.
+1. **Inference cadence**: The Android tracker throttles submissions and pose events at 100 ms intervals.
+2. **Camera lifecycle**: Disposing the native view schedules CameraX and MediaPipe cleanup.
+3. **Network use**: The native Android tracker bundles its model. Browser and WebView tracking download MediaPipe runtime files from a CDN and process camera frames locally.
 
 ---
 

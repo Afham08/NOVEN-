@@ -41,8 +41,18 @@ type Palette = Record<string, string>;
 function palette(themeSource: string, name: 'light' | 'dark'): Palette {
   const block = themeSource.split(`${name}: {`)[1]?.split('},')[0] ?? '';
   const found: Palette = {};
-  for (const match of block.matchAll(/(\w+):\s*'(#[0-9A-Fa-f]{6})'/g)) {
+  for (const match of block.matchAll(/(\w+):\s*'(#[0-9A-Fa-f]{6,8}|rgba\([^)]+\))'/g)) {
     found[match[1]] = match[2];
+  }
+  // Composite translucent surfaces over the scheme background before checking contrast.
+  for (const [key, value] of Object.entries(found)) {
+    if (!value.startsWith('rgba(')) continue;
+    const [r, g, b, alpha] = value.slice(5, -1).split(',').map(Number);
+    const background = found.background;
+    found[key] = '#' + [r, g, b].map((channel, i) => {
+      const behind = parseInt(background.slice(i * 2 + 1, i * 2 + 3), 16);
+      return Math.round(channel * alpha + behind * (1 - alpha)).toString(16).padStart(2, '0');
+    }).join('');
   }
   return found;
 }
@@ -196,9 +206,9 @@ export function run(): void {
       // Outline keeps the surface and draws its label in the stronger semantic accent token.
       check(
         `an outline label is readable in ${name}`,
-        contrast(colours.accentStrong, colours.backgroundElement) >= LARGE_TEXT_MINIMUM,
+        contrast(colours.secondaryButtonText, colours.secondaryButton) >= LARGE_TEXT_MINIMUM,
         {
-          ratio: contrast(colours.accentStrong, colours.backgroundElement),
+          ratio: contrast(colours.secondaryButtonText, colours.secondaryButton),
         },
       );
       /*
@@ -208,12 +218,12 @@ export function run(): void {
        */
       check(
         `a primary label is readable on its own accent in ${name}`,
-        contrast(colours.onAccent, colours.accentStrong) >= BODY_MINIMUM,
+        contrast(colours.exerciseButtonText, colours.exerciseButton) >= BODY_MINIMUM,
         { onAccent: colours.onAccent, accentStrong: colours.accentStrong },
       );
       check(
         `a secondary label is readable on the secondary accent in ${name}`,
-        contrast(colours.onAccent, colours.accentSecondary) >= BODY_MINIMUM,
+        contrast(colours.secondaryButtonText, colours.secondaryButton) >= BODY_MINIMUM,
         { onAccent: colours.onAccent, accentSecondary: colours.accentSecondary },
       );
       check(
@@ -225,8 +235,8 @@ export function run(): void {
 
     check(
       'the filled variants keep their own backgrounds',
-      /theme\.accentStrong/.test(background) &&
-        /theme\.accentSecondary/.test(background) &&
+      /theme\.exerciseButton/.test(background) &&
+        /theme\.secondaryButton/.test(background) &&
         /theme\.danger/.test(background),
       background,
     );

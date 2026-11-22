@@ -9,7 +9,7 @@ export function HomeActivity({ title, icon, wide, onPress }: {
   const theme = useTheme();
   return (
     <Pressable accessibilityRole="button" accessibilityLabel={title} onPress={onPress}
-      style={({ pressed, hovered }) => [styles.card, wide && styles.wide,
+      style={({ pressed, hovered }: { pressed: boolean; hovered?: boolean }) => [styles.card, wide && styles.wide,
         { backgroundColor: theme.activityGlass, borderColor: hovered ? theme.accentStrong : theme.activityGlassBorder,
           boxShadow: `0 8px 24px ${theme.activityShadow}`, shadowColor: theme.activityShadow,
           opacity: pressed ? 0.78 : 1 }]}>

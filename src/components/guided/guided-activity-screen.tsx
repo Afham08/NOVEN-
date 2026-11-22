@@ -1,3 +1,4 @@
+import { Camera } from 'expo-camera';
 import { useRouter } from 'expo-router';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { PermissionsAndroid, Platform, Pressable, StyleSheet, Text, View } from 'react-native';
@@ -109,6 +110,7 @@ export function GuidedActivityScreen({ activity }: GuidedActivityScreenProps) {
   const [saving, setSaving] = useState(false);
 
   /** Camera permission state for camera-tracked steps. */
+  const [trackerError, setTrackerError] = useState<string | null>(null);
   const [hasCameraPermission, setHasCameraPermission] = useState<boolean | null>(null);
 
   /** SessionEngine for the current camera-tracked step, if any (held in ref to avoid effect setState). */
@@ -662,6 +664,15 @@ export function GuidedActivityScreen({ activity }: GuidedActivityScreenProps) {
         return;
       }
     }
+    if (Platform.OS === 'ios') {
+      try {
+        const permission = await Camera.requestCameraPermissionsAsync();
+        setHasCameraPermission(permission.granted);
+      } catch {
+        setHasCameraPermission(false);
+      }
+      return;
+    }
     if (Platform.OS !== 'android') {
       setHasCameraPermission(false);
       return;
@@ -771,7 +782,12 @@ export function GuidedActivityScreen({ activity }: GuidedActivityScreenProps) {
   const handlePoseFrame = useCallback(
     (event: { nativeEvent: PoseFrameEventPayload }) => {
       if (snapshot.phase !== 'running') return;
-      const { presence, landmarks, timestampMs } = event.nativeEvent;
+      const { presence, timestampMs, imageWidth, imageHeight } = event.nativeEvent;
+      // Posture and hold rules compare distances across axes; use image-height units for both.
+      const aspect = imageHeight > 0 && imageWidth > 0 ? imageWidth / imageHeight : 1;
+      const landmarks = (isMeditation || poseTrackerRef.current) && aspect !== 1
+        ? event.nativeEvent.landmarks.map(point => ({ ...point, x: point.x * aspect }))
+        : event.nativeEvent.landmarks;
 
       if (isMeditation) {
         setPostureGuidance(
@@ -1223,6 +1239,8 @@ export function GuidedActivityScreen({ activity }: GuidedActivityScreenProps) {
       {showCameraPreview && (
         <View style={[styles.cameraFrame, { backgroundColor: theme.cameraSurface }]}>
           <PoseTrackerView
+            exerciseId={snapshot.currentStep?.cameraConfigId ?? snapshot.currentStep?.poseRuleId ?? activity.id}
+            onError={({ nativeEvent }) => { setTrackerError(nativeEvent.message); setHasCameraPermission(false); }}
             style={styles.camera}
             onFrame={() => {}}
             onPoseFrame={handlePoseFrame}
@@ -1304,7 +1322,7 @@ export function GuidedActivityScreen({ activity }: GuidedActivityScreenProps) {
       )}
 
       {isCameraStep && running && !hasCameraPermission && (!isMeditation || postureCheckEnabled) && (
-        <CameraPlaceholder optional={isMeditation} />
+        trackerError ? <Text accessibilityRole="alert" style={{ color: theme.danger }}>{trackerError}</Text> : <CameraPlaceholder optional={isMeditation} />
       )}
 
       {isMeditation && isCameraStep && running && !postureCheckEnabled && (

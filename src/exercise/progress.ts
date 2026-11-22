@@ -175,6 +175,7 @@ export function buildProgress(
 ): ProgressSummary {
   const windowStart = progressWindowStart(now);
   const windowStartMs = windowStart.getTime();
+  const tomorrowMs = new Date(now.getFullYear(), now.getMonth(), now.getDate() + 1).getTime();
 
   const inWindow = records
     .filter((record) => {
@@ -187,7 +188,7 @@ export function buildProgress(
       const completedMs = Date.parse(record.completedAt);
       // A NaN date fails this comparison, which is how unparseable timestamps
       // are dropped without a separate branch.
-      return Number.isFinite(completedMs) && completedMs >= windowStartMs;
+      return Number.isFinite(completedMs) && completedMs >= windowStartMs && completedMs < tomorrowMs;
     })
     .sort((a, b) => {
       const delta = Date.parse(a.completedAt) - Date.parse(b.completedAt);
@@ -260,10 +261,10 @@ export function progressHint(
      */
     if (summary.guidedInWindow > 0) {
       return summary.sessionsInWindow === summary.guidedInWindow
-        ? 'Your last 30 days were yoga, meditation or wellness. Those are not measured by the camera.'
+        ? 'Your last 30 days were yoga, meditation or wellness. These activities do not produce a steadiness score.'
         : 'An exercise with the camera would add a range comparison here.';
     }
-    return 'Sessions this month were too short to measure.';
+    return 'No session in this period has enough measured repetitions for a steadiness score.';
   }
   const latest = summary.latest;
   if (latest === null) return 'Similarity of your completed rep ranges.';

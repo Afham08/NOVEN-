@@ -8,6 +8,7 @@ export type Side = 'left' | 'right';
  * E.g. for the left knee: hip / knee (vertex) / ankle.
  */
 export type AngleTriplet = {
+  relativeToVertical?: boolean;
   hip: PoseLandmarkName;
   knee: PoseLandmarkName;
   ankle: PoseLandmarkName;

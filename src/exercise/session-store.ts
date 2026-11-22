@@ -416,7 +416,10 @@ export type SessionStore = {
  * show the read issue rather than presenting that fallback as a genuine empty
  * history.
  */
-export function createSessionStore(store: KeyValueStore): SessionStore {
+export function createSessionStore(store: KeyValueStore, options?: {
+  shared?: boolean;
+  withWriteLock?: <T>(task: () => Promise<T>) => Promise<T>;
+}): SessionStore {
   let cache: SessionRecord[] | null = null;
   let cacheIssue: SessionHistoryLoadIssue | null = null;
   let historyUnreadable = false;
@@ -474,7 +477,7 @@ export function createSessionStore(store: KeyValueStore): SessionStore {
    * caller still receives the rejection from the promise returned here.
    */
   function enqueue<T>(task: () => Promise<T>): Promise<T> {
-    const result = tail.then(task);
+    const result = tail.then(() => options?.withWriteLock ? options.withWriteLock(task) : task());
     tail = result.then(
       () => undefined,
       () => undefined,
@@ -491,7 +494,7 @@ export function createSessionStore(store: KeyValueStore): SessionStore {
   }
 
   async function readResult(): Promise<SessionHistoryLoadResult> {
-    if (cache !== null) return fromCache();
+    if (!options?.shared && cache !== null && cacheIssue === null) return fromCache();
     const issuedAt = storedEpoch;
     let raw: string | null = null;
     try {
@@ -563,7 +566,9 @@ export function createSessionStore(store: KeyValueStore): SessionStore {
      */
     saveSession(record) {
       return enqueue(async () => {
-        const existing = await read();
+        const result = await readResult();
+        if (result.status !== 'loaded') throw new Error('session history is unreadable; refusing to overwrite it');
+        const existing = result.records;
         const without = existing.filter((entry) => entry.id !== record.id);
         const next = sortNewestFirst([...without, record]);
         await write(next);

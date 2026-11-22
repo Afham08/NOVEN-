@@ -55,7 +55,7 @@ function getMediaPipeHtml(exerciseId: string = 'seated-arm-raise'): string {
       'LEFT_HEEL','RIGHT_HEEL','LEFT_FOOT_INDEX','RIGHT_FOOT_INDEX'
     ];
 
-    const exerciseId = "${exerciseId}";
+    const exerciseId = ${JSON.stringify(exerciseId).replace(/</g, '\\u003c')};
     const video = document.getElementById('v');
     const canvas = document.getElementById('c');
     let poseInstance = null;
@@ -67,7 +67,8 @@ function getMediaPipeHtml(exerciseId: string = 'seated-arm-raise'): string {
     }
 
     function calcAngle(p1, p2, p3) {
-      const rad = Math.atan2(p3.y - p2.y, p3.x - p2.x) - Math.atan2(p1.y - p2.y, p1.x - p2.x);
+      const aspect = video.videoWidth / video.videoHeight;
+      const rad = Math.atan2(p3.y - p2.y, (p3.x - p2.x) * aspect) - Math.atan2(p1.y - p2.y, (p1.x - p2.x) * aspect);
       let deg = Math.abs((rad * 180.0) / Math.PI);
       if (deg > 180.0) deg = 360 - deg;
       return Math.round(deg);
@@ -145,6 +146,13 @@ function getMediaPipeHtml(exerciseId: string = 'seated-arm-raise'): string {
     function onResults(results) {
       const width = canvas.clientWidth || 640;
       const height = canvas.clientHeight || 480;
+      const sourceWidth = video.videoWidth || 640;
+      const sourceHeight = video.videoHeight || 480;
+      const scale = Math.max(width / sourceWidth, height / sourceHeight);
+      const drawnWidth = sourceWidth * scale;
+      const drawnHeight = sourceHeight * scale;
+      const xPixel = (x) => (width - drawnWidth) / 2 + (1 - x) * drawnWidth;
+      const yPixel = (y) => (height - drawnHeight) / 2 + y * drawnHeight;
       if (canvas.width !== width || canvas.height !== height) {
         canvas.width = width;
         canvas.height = height;
@@ -159,30 +167,22 @@ function getMediaPipeHtml(exerciseId: string = 'seated-arm-raise'): string {
       }
 
       // Calculate joint angles for current exercise
-      let currentAngle = 90;
-      let focalPoint = null;
+      const arm = exerciseId === 'seated-arm-raise';
+      const leg = exerciseId === 'seated-knee-extension' || exerciseId === 'sit-to-stand';
       let goalHit = false;
-
-      if (exerciseId === 'seated-arm-raise') {
-        const shoulder = raw[12] || raw[11];
-        const elbow = raw[14] || raw[13];
-        const hip = raw[24] || raw[23];
-        if (shoulder && elbow && hip) {
-          currentAngle = calcAngle(hip, shoulder, elbow);
-          focalPoint = { x: (1 - shoulder.x) * width, y: shoulder.y * height };
-          goalHit = currentAngle >= 120;
-        }
-      } else {
-        const hip = raw[24] || raw[23];
-        const knee = raw[26] || raw[25];
-        const ankle = raw[28] || raw[27];
-        if (hip && knee && ankle) {
-          currentAngle = calcAngle(hip, knee, ankle);
-          focalPoint = { x: (1 - knee.x) * width, y: knee.y * height };
-          goalHit = currentAngle >= (exerciseId === 'sit-to-stand' ? 165 : 160);
+      let focalPoint = null;
+      if (arm || leg) {
+        for (const side of [0, 1]) {
+          const first = raw[23 + side];
+          const joint = raw[(arm ? 11 : 25) + side];
+          const last = raw[(arm ? 13 : 27) + side];
+          if (![first, joint, last].every(p => p && (p.visibility ?? 0) >= 0.4)) continue;
+          const angle = calcAngle(first, joint, last);
+          goalHit = angle >= (arm ? 120 : exerciseId === 'sit-to-stand' ? 165 : 160);
+          focalPoint = { x: xPixel(joint.x), y: yPixel(joint.y) };
+          if (goalHit) break;
         }
       }
-
       // Draw Glowing Skeleton over user's body
       ctx.lineWidth = 2.5;
       ctx.strokeStyle = goalHit ? '#10B981' : '#38BDF8';
@@ -193,16 +193,16 @@ function getMediaPipeHtml(exerciseId: string = 'seated-arm-raise'): string {
         const p1 = raw[i], p2 = raw[j];
         if (!p1 || !p2 || (p1.visibility ?? 0) < 0.3 || (p2.visibility ?? 0) < 0.3) continue;
         ctx.beginPath();
-        ctx.moveTo((1 - p1.x) * width, p1.y * height);
-        ctx.lineTo((1 - p2.x) * width, p2.y * height);
+        ctx.moveTo(xPixel(p1.x), yPixel(p1.y));
+        ctx.lineTo(xPixel(p2.x), yPixel(p2.y));
         ctx.stroke();
       }
 
       ctx.shadowBlur = 0;
       raw.forEach((lm, idx) => {
         if ((lm.visibility ?? 0) < 0.3) return;
-        const px = (1 - lm.x) * width;
-        const py = lm.y * height;
+        const px = xPixel(lm.x);
+        const py = yPixel(lm.y);
         const isFocal = idx === 11 || idx === 12 || idx === 13 || idx === 14 || idx === 25 || idx === 26;
         ctx.fillStyle = isFocal ? (goalHit ? '#10B981' : '#F97316') : '#E2E8F0';
         ctx.beginPath();
@@ -229,7 +229,7 @@ function getMediaPipeHtml(exerciseId: string = 'seated-arm-raise'): string {
       }));
 
       if (window.ReactNativeWebView) {
-        window.ReactNativeWebView.postMessage(JSON.stringify({ type: 'landmarks', landmarks: payload }));
+        window.ReactNativeWebView.postMessage(JSON.stringify({ type: 'landmarks', landmarks: payload, width: sourceWidth, height: sourceHeight }));
       }
     }
 
@@ -244,11 +244,14 @@ export default function PoseTrackerView({ exerciseId = 'seated-arm-raise', onFra
   const [tracking, setTracking] = React.useState(false);
   const [cameraReady, setCameraReady] = React.useState(false);
   const onPoseFrameRef = React.useRef(onPoseFrame);
-  onPoseFrameRef.current = onPoseFrame;
   const onFrameRef = React.useRef(onFrame);
-  onFrameRef.current = onFrame;
   const onErrorRef = React.useRef(onError);
-  onErrorRef.current = onError;
+  React.useLayoutEffect(() => {
+    onFrameRef.current = onFrame;
+    onPoseFrameRef.current = onPoseFrame;
+    onErrorRef.current = onError;
+  }, [onFrame, onPoseFrame, onError]);
+
   const frameIndexRef = React.useRef(0);
   const webViewSource = React.useMemo(
     () => ({ html: getMediaPipeHtml(exerciseId), baseUrl: 'https://localhost/' }),
@@ -266,8 +269,8 @@ export default function PoseTrackerView({ exerciseId = 'seated-arm-raise', onFra
           onPoseFrameRef.current?.({
             nativeEvent: {
               timestampMs: now,
-              imageWidth: 640,
-              imageHeight: 480,
+              imageWidth: data.width,
+              imageHeight: data.height,
               presence: 'tracked',
               landmarks: data.landmarks,
             },

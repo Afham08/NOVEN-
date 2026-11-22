@@ -141,7 +141,7 @@ export function run() {
     check('sessions but none recent says so', progressHint(empty, 4).includes('No sessions'));
 
     const unscoreable = { ...empty, sessionsInWindow: 2, scoredInWindow: 0 };
-    check('sessions that cannot be scored are not called zero', progressHint(unscoreable, 2).includes('too short'), progressHint(unscoreable, 2));
+    check('sessions that cannot be scored are not called zero', progressHint(unscoreable, 2).includes('enough measured repetitions'), progressHint(unscoreable, 2));
 
     /*
      * A month of guided sessions and no camera ones is a different situation from
@@ -151,7 +151,7 @@ export function run() {
      */
     const onlyGuided = { ...empty, sessionsInWindow: 3, guidedInWindow: 3 };
     check('guided sessions are not called too short', !progressHint(onlyGuided, 3).includes('too short'), progressHint(onlyGuided, 3));
-    check('guided sessions say they were not measured by the camera', progressHint(onlyGuided, 3).includes('not measured by the camera'), progressHint(onlyGuided, 3));
+    check('guided sessions explain why they have no steadiness score', progressHint(onlyGuided, 3).includes('do not produce a steadiness score'), progressHint(onlyGuided, 3));
     const mixed = { ...empty, sessionsInWindow: 5, guidedInWindow: 3 };
     check('a mix points at the camera as the thing that would add a score', progressHint(mixed, 5).includes('with the camera'), progressHint(mixed, 5));
 

@@ -1,3 +1,4 @@
+import { Camera } from 'expo-camera';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { AppState, Linking, PermissionsAndroid, Platform, StyleSheet, Text, View, useWindowDimensions } from 'react-native';
@@ -185,6 +186,15 @@ function SessionScreen({ onRetry }: { onRetry: () => void }) {
         return;
       }
       setHasCameraPermission(false);
+      return;
+    }
+    if (Platform.OS === 'ios') {
+      try {
+        const permission = await Camera.requestCameraPermissionsAsync();
+        setHasCameraPermission(permission.granted);
+      } catch {
+        setHasCameraPermission(false);
+      }
       return;
     }
     if (Platform.OS !== 'android') {
@@ -499,7 +509,8 @@ function SessionScreen({ onRetry }: { onRetry: () => void }) {
       if (phaseRef.current === 'running' || phaseRef.current === 'paused') end();
       else if (phaseRef.current === 'completed') leaveSession();
       else if (phaseRef.current === 'tracking-error') exitFailedSession();
-      else router.back();
+      else if (router.canGoBack()) router.back();
+      else router.replace('/exercise');
     }}>
       <Text
         accessibilityLabel={`${exercise.name}, ${chipLabel}`}
@@ -706,8 +717,7 @@ function SessionScreen({ onRetry }: { onRetry: () => void }) {
         </View>
       )}
 
-      {/* Retained for test assertions, hidden visually for elderly simplicity */}
-      <View style={{ display: 'none' }}>
+      {phase === 'ready' && (
         <Card variant="surface" padding="medium" style={styles.instructions}>
           <Text style={[styles.instructionsTitle, { color: theme.heading }]}>Instructions</Text>
           {exercise.instructions.map((instruction, index) => (
@@ -716,8 +726,9 @@ function SessionScreen({ onRetry }: { onRetry: () => void }) {
               <Text style={[styles.instructionStep, { color: theme.text }]}>{instruction}</Text>
             </View>
           ))}
+          <Text style={{ color: theme.text }}>{exercise.safetyNote}</Text>
         </Card>
-      </View>
+      )}
 
       {/*
         A completed session is terminal: the frozen metrics were already handed

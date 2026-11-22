@@ -257,7 +257,11 @@ export function run() {
     check('the window start is a real date', Number.isFinite(progressWindowStart(NOW).getTime()));
 
     // A session at 23:30 local on the 29th day back belongs to that local day.
-    const boundary = new Date(2026, 8, 30 - 1, 23, 30, 0);
+    const boundary = progressWindowStart(NOW);
+    boundary.setHours(23, 30);
+    const future = new Date(NOW);
+    future.setDate(future.getDate() + 1);
+    check('future days are outside the window', buildProgress([{ id: 'future', completedAt: future.toISOString(), consistencyPct: 80 }], NOW).points.length === 0);
     check('a late-evening boundary session is inside the window', buildProgress([{ id: 'b', completedAt: boundary.toISOString(), consistencyPct: 80 }], NOW).points.length === 1);
   });
 

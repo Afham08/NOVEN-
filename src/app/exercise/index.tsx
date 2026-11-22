@@ -1,3 +1,4 @@
+import { exerciseVideos } from '@/data/exercise-videos';
 import { useRouter } from 'expo-router';
 import { SymbolView } from 'expo-symbols';
 import { useVideoPlayer, VideoView } from 'expo-video';
@@ -14,20 +15,8 @@ import { exercisesCatalog, Exercise } from '@/data/exercises';
 import { useLanguage } from '@/hooks/use-language';
 import { useTheme } from '@/hooks/use-theme';
 
-const VIDEO_MAP: Record<string, string> = {
-  'seated-knee-extension': '/videos/seated-knee-extension.mp4',
-  'seated-arm-raise': '/videos/seated-arm-raise.mp4',
-  'sit-to-stand': '/videos/sit-to-stand.mp4',
-};
-
-const LOCAL_VIDEOS: Record<string, any> = {
-  'seated-knee-extension': require('../../../assets/video/Seated knee extension.mp4'),
-  'seated-arm-raise': require('../../../assets/video/seated arm raise.mp4'),
-  'sit-to-stand': require('../../../assets/video/sit-to-stand.mp4'),
-};
-
 function NativeExerciseVideo({ exerciseId }: { exerciseId: string }) {
-  const source = LOCAL_VIDEOS[exerciseId] || LOCAL_VIDEOS['seated-knee-extension'];
+  const source = exerciseVideos[exerciseId] || exerciseVideos['seated-knee-extension'];
   const player = useVideoPlayer(source, (p) => {
     p.loop = true;
     p.play();
@@ -75,8 +64,6 @@ export default function ExerciseScreen() {
     setPreviewExercise(null);
     // Direct start into the camera session:
     router.push(`/exercise/session?id=${exercise.id}`);
-    // Code reference retained for test suite integrity:
-    // router.push(`/exercise/${exercise.id}`)
   };
 
   const getLocalizedName = (exercise: Exercise) => {
@@ -221,7 +208,7 @@ export default function ExerciseScreen() {
               <View style={styles.videoWrapper}>
                 {Platform.OS === 'web' ? (
                   <video
-                    src={VIDEO_MAP[previewExercise.id]}
+                    src={exerciseVideos[previewExercise.id]}
                     controls
                     autoPlay
                     loop

@@ -184,7 +184,10 @@ export class RepDetector {
    * completed a rep and the resulting machine phase.
    */
   process(frame: RepFrame): RepOutcome {
-    const { angle, timestampMs } = frame;
+    const { timestampMs } = frame;
+    // The state machine runs on increasing excursion for both flexion and extension.
+    const direction = this.config.extendedAngleDeg < this.config.bentAngleDeg ? -1 : 1;
+    const angle = frame.angle * direction;
     let shortHold = false;
     if (!Number.isFinite(angle)) {
       return { repCompleted: false, repRange: null, phase: this.phase };
@@ -201,12 +204,13 @@ export class RepDetector {
       this.lastFrameAtMs !== null &&
       timestampMs - this.lastFrameAtMs > this.config.maxFrameGapMs
     ) {
-      this.resetCycle();
-      this.phase = 'rest';
+      this.freeze();
     }
     this.lastFrameAtMs = timestampMs;
 
-    const { bentAngleDeg, extendedAngleDeg, holdFrames } = this.config;
+    const { holdFrames } = this.config;
+    const bentAngleDeg = this.config.bentAngleDeg * direction;
+    const extendedAngleDeg = this.config.extendedAngleDeg * direction;
 
     // Nothing counts until the bent starting posture has actually been seen.
     // Frames above the bent band are observed but cannot move the machine, and

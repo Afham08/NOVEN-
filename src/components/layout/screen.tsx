@@ -41,8 +41,8 @@ export function Screen({ children, contentStyle, onBack }: ScreenProps) {
               accessibilityRole="button"
               accessibilityLabel={`Back from ${navigationTitle}`}
               hitSlop={8}
-              onPress={onBack ?? (() => router.back())}
-              style={({ pressed, hovered }) => [
+              onPress={onBack ?? (() => router.canGoBack() ? router.back() : router.replace('/'))}
+              style={({ pressed, hovered }: { pressed: boolean; hovered?: boolean }) => [
                 styles.backButton,
                 {
                   backgroundColor: theme.secondaryButton,

@@ -84,12 +84,14 @@ export function CustomTabList(props: TabListProps) {
 
   return (
     <View {...props} style={[styles.tabListContainer, isMobile && styles.tabListContainerMobile]}>
-      <ThemedView type="backgroundElement" style={[styles.innerContainer, isMobile && styles.innerContainerMobile, { backgroundColor: theme.glass, borderColor: theme.glassBorder, backdropFilter: 'blur(24px)' }]}>
+      <ThemedView type="backgroundElement" style={[webGlass, styles.innerContainer, isMobile && styles.innerContainerMobile, { backgroundColor: theme.glass, borderColor: theme.glassBorder }]}>
         {props.children}
       </ThemedView>
     </View>
   );
 }
+
+const webGlass = { backdropFilter: 'blur(24px)', backgroundColor: 'transparent' };
 
 const styles = StyleSheet.create({
   tabListContainer: {

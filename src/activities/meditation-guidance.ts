@@ -134,7 +134,7 @@ export function torsoLeanFromVerticalDeg(
 
   const joints = [leftShoulder, rightShoulder, leftHip, rightHip];
   for (const joint of joints) {
-    if (joint.visibility < minVisibility) return Number.NaN;
+    if (!Number.isFinite(joint.visibility) || joint.visibility < minVisibility) return Number.NaN;
     if (!Number.isFinite(joint.x) || !Number.isFinite(joint.y)) return Number.NaN;
   }
 

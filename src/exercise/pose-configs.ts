@@ -300,11 +300,13 @@ export const TRUNK_LATERAL_FLEXION: ExerciseConfig = {
   sides: ['left', 'right'],
   triplets: {
     left: {
+      relativeToVertical: true,
       hip: 'LEFT_SHOULDER',
       knee: 'LEFT_HIP',
       ankle: 'LEFT_KNEE',
     },
     right: {
+      relativeToVertical: true,
       hip: 'RIGHT_SHOULDER',
       knee: 'RIGHT_HIP',
       ankle: 'RIGHT_KNEE',
