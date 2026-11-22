@@ -38,6 +38,10 @@ export default function ProgressScreen() {
    * "not enough data" rows on somebody's finished routine.
    */
   const openSession = (record: SessionRecord) => {
+    if (record.yoga) {
+      router.push({ pathname: '/yoga/result', params: { recordId: record.id } });
+      return;
+    }
     if (record.activityKind !== undefined && record.activityKind !== 'exercise') {
       router.push({
         pathname: '/activity-result',
