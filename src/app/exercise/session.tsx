@@ -18,7 +18,7 @@ import { Radius, Spacing, Type } from '@/constants/theme';
 import { getExerciseById } from '@/data/exercises';
 import { completedFeedback, movementWording, pausedFeedback, setupFeedback, type FeedbackCue } from '@/exercise/feedback';
 import { buildSessionMetrics, formatConsistencyLabel, formatDurationLabel, formatPaceLabel, formatRangeLabel } from '@/exercise/metrics';
-import { getExerciseConfig } from '@/exercise/pose-configs';
+import { getExerciseSessionConfig } from '@/exercise/pose-configs';
 import { createSessionId, createSessionRecord } from '@/exercise/session-store';
 import { sessionSaveStatusTracker } from '@/exercise/session-save-status';
 import { sessionPhaseLabel, type SessionPhase } from '@/exercise/session-phase';
@@ -92,7 +92,9 @@ function SessionScreen({ onRetry }: { onRetry: () => void }) {
     setPhase(next);
   }, []);
 
-  const config = getExerciseConfig(id);
+  const config = getExerciseSessionConfig(id);
+  const holdSeconds = (config?.thresholds.minExtendedHoldMs ?? 0) / 1000;
+  const countLabel = exercise?.countUnit === 'step' ? 'Steps' : 'Reps';
 
   /**
    * The whole per-frame exercise pipeline lives in SessionEngine (pure, and unit
@@ -109,7 +111,7 @@ function SessionScreen({ onRetry }: { onRetry: () => void }) {
    * what gives "constructed exactly once" without touching a ref during render.
    */
   const [engine] = useState<SessionEngine | null>(() =>
-    config === undefined ? null : new SessionEngine({ ...config, thresholds: { ...config.thresholds, minExtendedHoldMs: 3000 } }),
+    config === undefined ? null : new SessionEngine(config),
   );
   const [failureGate] = useState(() => new PoseTrackerFailureGate());
 
@@ -134,7 +136,7 @@ function SessionScreen({ onRetry }: { onRetry: () => void }) {
   const [voiceEnabled, setVoiceEnabled] = useState(true);
 
   useEffect(() => {
-    const voice = new VoiceFeedbackController(createExpoSpeechSink());
+    const voice = new VoiceFeedbackController(createExpoSpeechSink(), exercise?.countUnit, exercise?.cameraHint);
     voiceRef.current = voice;
     // Spoken once on open, while the user is still beside the phone and can act
     // on it. This is the only place the setup copy is spoken.
@@ -143,7 +145,7 @@ function SessionScreen({ onRetry }: { onRetry: () => void }) {
       voiceRef.current?.dispose();
       voiceRef.current = null;
     };
-  }, []);
+  }, [exercise?.countUnit, exercise?.cameraHint]);
 
   const toggleVoice = () => {
     if (voiceEnabled) {
@@ -152,7 +154,7 @@ function SessionScreen({ onRetry }: { onRetry: () => void }) {
       setVoiceEnabled(false);
       return;
     }
-    const voice = new VoiceFeedbackController(createExpoSpeechSink());
+    const voice = new VoiceFeedbackController(createExpoSpeechSink(), exercise?.countUnit, exercise?.cameraHint);
     voiceRef.current = voice;
     voice.announceSetup();
     setVoiceEnabled(true);
@@ -290,7 +292,7 @@ function SessionScreen({ onRetry }: { onRetry: () => void }) {
       voiceRef.current?.onFrame(result);
 
       // Hold countdown tracking (3-second hold then prompt release)
-      if (result.feedback.kind === 'hold') {
+      if (holdSeconds > 0 && result.feedback.kind === 'hold') {
         if (holdStartTimeRef.current === null) {
           holdStartTimeRef.current = event.nativeEvent.timestampMs;
         }
@@ -319,7 +321,7 @@ function SessionScreen({ onRetry }: { onRetry: () => void }) {
         }
       }
     },
-    [engine, updateHud, triggerRepCelebration, goToPhase],
+    [engine, holdSeconds, updateHud, triggerRepCelebration, goToPhase],
   );
 
   const handleTrackerError = useCallback(
@@ -464,12 +466,14 @@ function SessionScreen({ onRetry }: { onRetry: () => void }) {
         ? pausedFeedback().text
         : phase === 'tracking-error'
           ? 'Pose tracking stopped.'
+          : hud.feedback.kind === 'setup' && exercise?.cameraHint
+            ? exercise.cameraHint
           : hud.feedback.kind === 'hold'
-            ? holdDuration >= 3 ? movementWording(config?.id).return : `Hold this position for ${Math.max(1, Math.ceil(3 - holdDuration))} seconds`
+            ? holdDuration >= holdSeconds ? movementWording(config?.id).return : `Hold this position for ${Math.max(1, Math.ceil(holdSeconds - holdDuration))} seconds`
             : hud.feedback.kind === 'short-hold'
               ? hud.feedback.text
               : hud.feedback.kind === 'positioning'
-              ? id === 'sit-to-stand' ? 'Sit where your knees and ankles are visible' : id === 'seated-arm-raise' ? 'Sit with your arms down and shoulders visible' : 'Sit with your leg and foot visible'
+              ? exercise?.cameraHint ?? (id === 'sit-to-stand' ? 'Sit where your knees and ankles are visible' : id === 'seated-arm-raise' ? 'Sit with your arms down and shoulders visible' : 'Sit with your leg and foot visible')
               : hud.feedback.kind === 'ready' && phase === 'running'
                 ? movementWording(config?.id).extend
                 : hud.feedback.text;
@@ -478,12 +482,15 @@ function SessionScreen({ onRetry }: { onRetry: () => void }) {
     if (phase === 'paused') return 'PAUSED';
     if (phase === 'completed') return 'COMPLETE';
     if (phase === 'ready') return 'READY';
+    if (holdSeconds === 0 && ['extend', 'hold', 'return'].includes(hud.feedback.kind)) {
+      return hud.feedback.kind === 'hold' ? movementWording(config?.id).return : hud.feedback.text;
+    }
     switch (hud.feedback.kind) {
       case 'extend':
         return 'EXTEND';
       case 'hold': {
-        const remaining = Math.max(1, Math.ceil(3 - holdDuration));
-        return holdDuration >= 3 ? 'RELEASE' : `HOLD (${remaining})`;
+        const remaining = Math.max(1, Math.ceil(holdSeconds - holdDuration));
+        return holdDuration >= holdSeconds ? 'RELEASE' : `HOLD (${remaining})`;
       }
       case 'return':
         return 'RELEASE';
@@ -498,7 +505,7 @@ function SessionScreen({ onRetry }: { onRetry: () => void }) {
       case 'position':
         return 'STEP INTO FRAME';
       case 'ready':
-        return 'MOVE SLOWLY';
+        return id === 'supported-squat' ? 'READY TO SQUAT' : 'MOVE SLOWLY';
       default:
         return 'STEADY PACE';
     }
@@ -518,10 +525,10 @@ function SessionScreen({ onRetry }: { onRetry: () => void }) {
         {exercise.name}
       </Text>
 
-      {/* Massive Green +1 REP! Popup (Visible from across the room) */}
+      {/* Massive Green +1 {countLabel === 'Steps' ? 'STEP' : 'REP'}! Popup (Visible from across the room) */}
       {showRepPopup && (
         <View style={[styles.repPopup, { backgroundColor: theme.glass, borderColor: theme.glassBorder, shadowColor: theme.success }]}>
-          <Text style={[styles.repPopupText, { color: theme.success }]}>+1 REP!</Text>
+          <Text style={[styles.repPopupText, { color: theme.success }]}>+1 {countLabel === 'Steps' ? 'STEP' : 'REP'}!</Text>
         </View>
       )}
 
@@ -538,7 +545,7 @@ function SessionScreen({ onRetry }: { onRetry: () => void }) {
           <SessionTimer seconds={seconds} phase={phase} suggestedSeconds={exercise.durationSeconds} />
           <Text style={[styles.metricLabel, { color: theme.textSecondary }]}>Set {currentSet} of 3</Text>
           <Text style={[styles.metricValue, { color: theme.heading }]}>{repsInSet} / 10</Text>
-          <Text style={[styles.metricLabel, { color: theme.textSecondary }]}>Reps</Text>
+          <Text style={[styles.metricLabel, { color: theme.textSecondary }]}>{countLabel}</Text>
         </Card>
       )}
       {hasCameraPermission ? (
@@ -569,7 +576,7 @@ function SessionScreen({ onRetry }: { onRetry: () => void }) {
         <View style={styles.desktopRightColumn}>
         <Card variant="surface" padding="medium" style={styles.sidePanel}>
           <Text style={[styles.metricLabel, { color: theme.textSecondary }]}>Guidance</Text>
-          <Text accessibilityLiveRegion="polite" style={[styles.desktopCue, { color: phase === 'running' && hud.feedback.kind === 'hold' && holdDuration < 3 ? theme.danger : phase === 'running' && (hud.feedback.kind === 'return' || hud.feedback.kind === 'good' || (hud.feedback.kind === 'hold' && holdDuration >= 3)) ? theme.success : theme.heading }]}>{phase === 'tracking-error' ? 'Camera stopped' : phase === 'ready' ? 'Get ready' : actionGuide}</Text>
+          <Text accessibilityLiveRegion="polite" style={[styles.desktopCue, { color: phase === 'running' && hud.feedback.kind === 'hold' && holdDuration < holdSeconds ? theme.danger : phase === 'running' && (hud.feedback.kind === 'return' || hud.feedback.kind === 'good' || (hud.feedback.kind === 'hold' && holdDuration >= holdSeconds)) ? theme.success : theme.heading }]}>{phase === 'tracking-error' ? 'Camera stopped' : phase === 'ready' ? 'Get ready' : actionGuide}</Text>
           <Text style={[styles.instructionStep, { color: theme.textSecondary }]}>{instructionText}</Text>
         </Card>
         <View style={styles.desktopActions}>
@@ -624,6 +631,9 @@ function SessionScreen({ onRetry }: { onRetry: () => void }) {
         </View>
       ) : null}
 
+      {!desktop && phase === 'ready' && id === 'supported-squat' && (
+        <Text style={[styles.instructionStep, { color: theme.textSecondary }]}>{exercise.cameraHint}</Text>
+      )}
       {phase === 'ready' && hasCameraPermission && !cameraStarted ? (
         <Text style={[styles.cameraStatus, { color: theme.textSecondary }]}>Preparing camera…</Text>
       ) : null}
@@ -649,7 +659,7 @@ function SessionScreen({ onRetry }: { onRetry: () => void }) {
         <Card variant="surface" padding="medium" style={styles.restCard}>
           <Text style={[styles.restTitle, { color: theme.heading }]}>All sets complete</Text>
           <Text style={[styles.restSubtitle, { color: theme.textSecondary }]}>
-            Fantastic job! You completed all 30 reps today.
+            Fantastic job! You completed all 30 {countLabel.toLowerCase()} today.
           </Text>
           <Button
             variant="primary"
@@ -690,7 +700,7 @@ function SessionScreen({ onRetry }: { onRetry: () => void }) {
               {
                 backgroundColor:
                   hud.feedback.kind === 'hold'
-                    ? holdDuration >= 3
+                    ? holdDuration >= holdSeconds
                       ? theme.success
                       : theme.danger
                     : hud.feedback.kind === 'return' || hud.feedback.kind === 'good'
@@ -708,7 +718,7 @@ function SessionScreen({ onRetry }: { onRetry: () => void }) {
             </View>
             <View style={[styles.setDivider, { backgroundColor: theme.border }]} />
             <View style={styles.setCol}>
-              <Text style={[styles.metricLabel, { color: theme.textSecondary }]}>Reps</Text>
+              <Text style={[styles.metricLabel, { color: theme.textSecondary }]}>{countLabel}</Text>
               <Text style={[styles.metricValue, { color: theme.heading }]}>{repsInSet} / 10</Text>
             </View>
           </Card>

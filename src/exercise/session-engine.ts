@@ -3,6 +3,7 @@ import type { LandmarkEventPayload, PoseFrameEventPayload } from '../../modules/
 import { PositiveFeedbackLatch, pausedFeedback, phaseFeedback, presenceFeedback, priorityPhase, readinessFeedback, setupFeedback, shortHoldFeedback, type FeedbackCue } from './feedback';
 import { isTrustedSide } from './landmark-trust';
 import { angleFromTriplet } from './pose-utils';
+import { TandemSteps } from './tandem-steps';
 import { RepDetector } from './rep-detector';
 import { createDiagnostics, readinessDiagnostics, readinessDiagnosticsEnabled } from './readiness-diagnostics';
 import { ReadinessGate, type ReadinessPhase } from './stabilize';
@@ -35,7 +36,8 @@ function requiredJoints(config: ExerciseConfig) {
 
 /** Torso anchor the gate watches to catch whole-body movement during counting. */
 function requiredAnchor(config: ExerciseConfig) {
-  return [...new Set(config.sides.map((side) => config.triplets[side].hip))];
+  const joint = config.id === 'supported-squat' ? 'ankle' : 'hip';
+  return [...new Set(config.sides.map((side) => config.triplets[side][joint]))];
 }
 
 /**
@@ -63,6 +65,10 @@ function requiredAnchor(config: ExerciseConfig) {
  */
 export class SessionEngine {
   private readonly detectors: Record<Side, RepDetector>;
+  private readonly squatRest: Partial<Record<Side, number>> = {};
+  private readonly footRaises: boolean;
+  private footRest: [number, number] = [90, 90];
+  private readonly steps: TandemSteps | null;
   private readonly gate: ReadinessGate;
   private readonly latch = new PositiveFeedbackLatch();
   private range: { min: number; max: number } | null = null;
@@ -90,6 +96,8 @@ export class SessionEngine {
   private readonly diagnostics = createDiagnostics();
 
   constructor(private readonly config: ExerciseConfig) {
+    this.footRaises = config.id === 'standing-heel-raises' || config.id === 'toe-raises';
+    this.steps = config.id === 'heel-to-toe-walking' ? new TandemSteps() : null;
     this.detectors = {
       left: new RepDetector(config.thresholds),
       right: new RepDetector(config.thresholds),
@@ -131,6 +139,7 @@ export class SessionEngine {
   reset(): void {
     this.detectors.left.reset();
     this.detectors.right.reset();
+    this.steps?.reset();
     this.gate.reset();
     this.latch.clear();
     this.range = null;
@@ -155,6 +164,7 @@ export class SessionEngine {
    * pause can never be completed by whatever happens after the resume.
    */
   pause(): SessionFrameResult {
+    this.steps?.reset();
     this.detectors.left.freeze();
     this.detectors.right.freeze();
     this.activeFrameTimestampMs = null;
@@ -180,6 +190,7 @@ export class SessionEngine {
   end(): void {
     this.stopped = true;
     this.activeFrameTimestampMs = null;
+    this.steps?.reset();
     this.detectors.left.freeze();
     this.detectors.right.freeze();
     this.latch.clear();
@@ -213,6 +224,7 @@ export class SessionEngine {
       // readiness again from scratch.
       this.gate.markLost();
       this.activeFrameTimestampMs = null;
+      this.steps?.reset();
       left.freeze();
       right.freeze();
       this.latch.clear();
@@ -222,7 +234,16 @@ export class SessionEngine {
     // Requirements B/C/D: incomplete, non-finite, or low-visibility landmarks
     // fail here. The gate drops to 'waiting' and freezes the detectors, so an
     // occluded frame can neither count a rep nor corrupt the observed range.
-    const outcome = this.gate.process(landmarks, timestampMs);
+    const gateLandmarks = (this.steps || this.footRaises) && !isTrustedSide(landmarks, requiredJoints(this.config), this.config.readiness.minVisibility)
+      ? [] : landmarks;
+    if (this.config.id === 'supported-squat' && this.gate.currentPhase === 'ready') {
+      const calibratedSideVisible = this.config.sides.some(side => {
+        const joints = this.config.triplets[side];
+        return this.squatRest[side] !== undefined && isTrustedSide(landmarks, [joints.hip, joints.knee, joints.ankle], this.config.thresholds.minVisibility);
+      });
+      if (!calibratedSideVisible) this.gate.markLost();
+    }
+    const outcome = this.gate.process(gateLandmarks, timestampMs);
 
     // The stillness window alone cannot tell postures apart: standing is still
     // and hip-stable, so a person who never sat down is granted counting with a
@@ -230,10 +251,26 @@ export class SessionEngine {
     // enabled, and refuse it if the tracked joints are not in the rest regime.
     // Evaluated only here (never per frame) because a genuine rep deliberately
     // leaves that regime when the knee extends. See ReadinessConfig.
+    if (outcome.becameReady && this.config.id === 'supported-squat') {
+      for (const side of this.config.sides) {
+        const joints = this.config.triplets[side];
+        const standing = angleFromTriplet(landmarks, joints, this.config.thresholds.minVisibility, aspectRatio);
+        const visible = isTrustedSide(landmarks, [joints.hip, joints.knee, joints.ankle], this.config.thresholds.minVisibility);
+        const hip = landmarks.find(p => p.name === joints.hip);
+        const knee = landmarks.find(p => p.name === joints.knee);
+        const ankle = landmarks.find(p => p.name === joints.ankle);
+        const upright = hip && knee && ankle && hip.y < knee.y && knee.y < ankle.y;
+        this.squatRest[side] = visible && upright && standing >= 150 ? standing : undefined;
+      }
+    }
+    if (outcome.becameReady && this.footRaises) {
+      this.footRest = this.footAngles(landmarks, aspectRatio);
+    }
     if (outcome.becameReady && !this.restingPostureSatisfied(landmarks, aspectRatio)) {
       this.shortHoldUntilMs = 0;
       this.gate.markLost();
       this.activeFrameTimestampMs = null;
+      this.steps?.reset();
       left.freeze();
       right.freeze();
       this.latch.clear();
@@ -244,6 +281,7 @@ export class SessionEngine {
     if (this.gate.currentPhase !== 'ready') {
       this.shortHoldUntilMs = 0;
       this.activeFrameTimestampMs = null;
+      this.steps?.reset();
       left.freeze();
       right.freeze();
       this.latch.clear();
@@ -252,26 +290,58 @@ export class SessionEngine {
     }
 
     this.updateActiveTime(timestampMs);
+    if (this.steps) {
+      const { minVisibility, maxFrameGapMs } = this.config.thresholds;
+      const counted = this.steps.process(landmarks, timestampMs, aspectRatio, minVisibility, maxFrameGapMs)
+        && this.countRep(timestampMs, null);
+      return this.emit(phaseFeedback('extending', counted, this.config.id), counted);
+    }
 
     let repCompletedThisFrame = false;
     let shortHoldThisFrame = false;
     for (const side of this.config.sides) {
-      const angle = angleFromTriplet(
+      // Both feet drive a single detector for a bilateral raise.
+      if (this.footRaises && side === 'right') continue;
+      let angle = this.footRaises ? this.bilateralFootAngle(landmarks, aspectRatio) : angleFromTriplet(
         landmarks,
         this.config.triplets[side],
         this.config.thresholds.minVisibility,
         aspectRatio,
       );
+      if (this.config.id === 'standing-hip-abduction' && Number.isFinite(angle)) {
+        const { hip: shoulderName, knee: hipName, ankle: ankleName } = this.config.triplets[side];
+        const shoulder = landmarks.find(p => p.name === shoulderName)!;
+        const hip = landmarks.find(p => p.name === hipName)!;
+        const ankle = landmarks.find(p => p.name === ankleName)!;
+        const other = landmarks.find(p => p.name === this.config.triplets[side === 'left' ? 'right' : 'left'].knee);
+        if (!other || !isTrustedSide(landmarks, [other.name], this.config.thresholds.minVisibility)) {
+          this.detectors[side].freeze();
+          continue;
+        }
+        // Cross product with the torso axis distinguishes outward from inward flexion.
+        const lateral = (hip.y - shoulder.y) * (ankle.x - hip.x) - (hip.x - shoulder.x) * (ankle.y - hip.y);
+        if (lateral * (hip.x - other.x) <= 0) angle = 180;
+      }
       // Requirement C: a non-finite angle never reaches a detector and never
       // widens the observed range.
-      if (!Number.isFinite(angle)) continue;
+      if (!Number.isFinite(angle)) {
+        if (this.config.id === 'supported-squat') this.detectors[side].freeze();
+        continue;
+      }
+      let detectorAngle = angle;
+      if (this.config.id === 'supported-squat') {
+        const baseline = this.squatRest[side];
+        if (baseline === undefined) continue;
+        // Count relative to the calibrated standing angle, but save the measured joint range.
+        detectorAngle = Math.min(180, 180 + angle - baseline);
+      }
 
       this.range =
         this.range === null
           ? { min: angle, max: angle }
           : { min: Math.min(this.range.min, angle), max: Math.max(this.range.max, angle) };
 
-      const outcome = this.detectors[side].process({ angle, timestampMs });
+      const outcome = this.detectors[side].process({ angle: detectorAngle, timestampMs });
       if (outcome.shortHold) shortHoldThisFrame = true;
       if (outcome.repCompleted && this.countRep(timestampMs, outcome.repRange)) {
         repCompletedThisFrame = true;
@@ -408,7 +478,26 @@ export class SessionEngine {
    * `bentAngleDeg` is the boundary the config already defines as "bent/at rest";
    * no new threshold is introduced.
    */
+  private footAngles(points: LandmarkEventPayload[], aspect: number): [number, number] {
+    const angle = (side: Side) => angleFromTriplet(points, this.config.triplets[side], this.config.thresholds.minVisibility, aspect);
+    return [angle('left'), angle('right')];
+  }
+
+  private bilateralFootAngle(points: LandmarkEventPayload[], aspect: number): number {
+    const angles = this.footAngles(points, aspect);
+    const { bentAngleDeg, extendedAngleDeg } = this.config.thresholds;
+    const direction = Math.sign(extendedAngleDeg - bentAngleDeg);
+    const lifts = angles.map((angle, i) => (angle - this.footRest[i]) * direction);
+    const restLimit = (bentAngleDeg - 90) * direction;
+    let lift = Math.min(...lifts);
+    // While only one foot is back on the floor, stay between rest and target.
+    if (lift <= restLimit && Math.max(...lifts) > restLimit) lift = restLimit + 1;
+    return 90 + direction * lift;
+  }
+
   private restingPostureSatisfied(landmarks: LandmarkEventPayload[], aspectRatio: number): boolean {
+    if (this.config.id === 'supported-squat') return this.config.sides.some(side => this.squatRest[side] !== undefined);
+    if (this.footRaises) return this.footRest.every(angle => Math.abs(angle - 90) <= 20);
     if (!this.config.readiness.requireRestingPosture) return true;
     const { minVisibility, bentAngleDeg } = this.config.thresholds;
     const trustworthySides: Side[] = [];

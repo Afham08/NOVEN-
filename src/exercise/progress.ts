@@ -126,6 +126,7 @@ export type ProgressSummary = {
    * situations and would otherwise be described by one wrong sentence.
    */
   guidedInWindow: number;
+  walkingInWindow: number;
   /** Most recent scoreable session. */
   latest: ProgressPoint | null;
   /** Mean of the plotted scores, rounded. Null when nothing is plotted. */
@@ -149,6 +150,7 @@ export type ProgressInput = Pick<
    * optional here too.
    */
   activityKind?: string;
+  exerciseId?: string;
 };
 
 /** True for a record the camera never watched, so no steadiness can exist for it. */
@@ -198,6 +200,7 @@ export function buildProgress(
 
   const points: ProgressPoint[] = [];
   let guidedInWindow = 0;
+  let walkingInWindow = 0;
   for (const record of inWindow) {
     if (isGuidedSession(record)) {
       /*
@@ -208,6 +211,10 @@ export function buildProgress(
        * explicit rather than relying on a null to carry meaning.
        */
       guidedInWindow += 1;
+      continue;
+    }
+    if (record.exerciseId === 'heel-to-toe-walking') {
+      walkingInWindow++;
       continue;
     }
     const score = progressScoreFor(record);
@@ -228,6 +235,7 @@ export function buildProgress(
     sessionsInWindow: inWindow.length,
     scoredInWindow: points.length,
     guidedInWindow,
+    walkingInWindow,
     latest: points.length > 0 ? points[points.length - 1] : null,
     average: scores.length > 0 ? Math.round(sum / scores.length) : null,
     highest: scores.length > 0 ? Math.max(...scores) : null,
@@ -259,6 +267,9 @@ export function progressHint(
      * not watched by the camera at all, so "too short to measure" would be a
      * wrong reason offered for a correct outcome.
      */
+    if (summary.walkingInWindow > 0) {
+      return 'Heel-to-toe walking records steps. A steadiness score needs an exercise that measures joint angles over several reps.';
+    }
     if (summary.guidedInWindow > 0) {
       return summary.sessionsInWindow === summary.guidedInWindow
         ? 'Your last 30 days were yoga, meditation or wellness. These activities do not produce a steadiness score.'

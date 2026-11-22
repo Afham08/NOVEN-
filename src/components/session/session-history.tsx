@@ -52,7 +52,7 @@ const EXPAND_STEP = 10;
  * those, and it phrases them by what they actually did.
  */
 export function describeCompletedCount(reps: number): string {
-  return `${reps} ${reps === 1 ? 'exercise' : 'exercises'} completed`;
+  return `${reps} ${reps === 1 ? 'rep' : 'reps'} completed`;
 }
 
 /**

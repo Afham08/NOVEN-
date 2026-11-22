@@ -16,7 +16,7 @@ import { useLanguage } from '@/hooks/use-language';
 import { useTheme } from '@/hooks/use-theme';
 
 function NativeExerciseVideo({ exerciseId }: { exerciseId: string }) {
-  const source = exerciseVideos[exerciseId] || exerciseVideos['seated-knee-extension'];
+  const source = exerciseVideos[exerciseId];
   const player = useVideoPlayer(source, (p) => {
     p.loop = true;
     p.play();
@@ -68,6 +68,7 @@ export default function ExerciseScreen() {
 
   const getLocalizedName = (exercise: Exercise) => {
     if (language === 'kn') {
+      if (exercise.kannada) return exercise.kannada.name;
       if (exercise.id === 'seated-knee-extension') return t('seatedKneeExtension');
       if (exercise.id === 'seated-arm-raise') return t('seatedArmRaise');
       if (exercise.id === 'sit-to-stand') return t('sitToStand');
@@ -87,7 +88,9 @@ export default function ExerciseScreen() {
           const metaConfig = EXERCISE_TARGET_LABELS[exercise.id];
           const targetMeta = metaConfig
             ? language === 'kn' ? metaConfig.kn : metaConfig.en
-            : `${exercise.target} • 3 sets`;
+             : language === 'kn'
+              ? `${exercise.kannada?.target ?? exercise.target} • 3 ಸೆಟ್‌ಗಳು (ತಲಾ 10)`
+              : `${exercise.target} • 3 sets of 10 ${exercise.countUnit === 'step' ? 'steps' : 'reps'}`;
 
           return (
             <Card
@@ -133,7 +136,10 @@ export default function ExerciseScreen() {
                 </View>
 
                 <View style={styles.buttonRow}>
-                  {/* 1. Preview Video Button */}
+                  {exerciseVideos[exercise.id] === undefined ? (
+                    <Button variant="secondary" title={language === 'kn' ? 'ಸೂಚನೆಗಳು' : 'Instructions'}
+                      onPress={() => router.push({ pathname: '/exercise/[id]', params: { id: exercise.id } })} />
+                  ) : (
                   <Pressable
                     accessibilityRole="button"
                     onPress={() => setPreviewExercise(exercise)}
@@ -149,6 +155,7 @@ export default function ExerciseScreen() {
                       {language === 'kn' ? t('preview') : 'Watch demo'}
                     </Text>
                   </Pressable>
+                  )}
 
                   {/* 2. Direct Start Hero Ember Button */}
                   <Pressable

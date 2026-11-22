@@ -482,10 +482,47 @@ export const MEDITATION_POSTURE: ExerciseConfig = {
  * These are the movements that appear in the exercise list and have dedicated
  * session screens with full rep counting and metrics.
  */
+type Joint = 'SHOULDER' | 'ELBOW' | 'WRIST' | 'HIP' | 'KNEE' | 'ANKLE' | 'HEEL' | 'FOOT_INDEX';
+
+function standingConfig(
+  id: string, name: string, joints: [Joint, Joint, Joint],
+  rest: number, target: number, range: number, vertical = false,
+): ExerciseConfig {
+  const triplet = (side: 'LEFT' | 'RIGHT'): ExerciseConfig['triplets']['left'] => ({
+    hip: `${side}_${joints[0]}`, knee: `${side}_${joints[1]}`, ankle: `${side}_${joints[2]}`,
+    relativeToVertical: vertical,
+  });
+  const walking = id === 'heel-to-toe-walking';
+  return {
+    id, name, sides: ['left', 'right'], triplets: { left: triplet('LEFT'), right: triplet('RIGHT') },
+    thresholds: { ...SEATED_KNEE_EXTENSION.thresholds, bentAngleDeg: rest, extendedAngleDeg: target, minRangeDeg: range },
+    readiness: { ...SEATED_KNEE_EXTENSION.readiness, maxAnchorOffset: walking ? 2 : 0.3,
+      maxAnchorDrift: walking ? 0.2 : 0.08, requireRestingPosture: !walking },
+  };
+}
+
+// Angles here are relative to the standing calibration (represented as 180°).
+const squat = standingConfig('supported-squat', 'Supported Squat', ['HIP', 'KNEE', 'ANKLE'], 172, 161, 18);
+const standingConfigs = [
+  {
+    ...squat,
+    // A natural return to standing can be much shorter than a one-second hold.
+    readiness: { ...squat.readiness, minStableMs: 250, minStableFrames: 3 },
+  },
+  standingConfig('wall-push-ups', 'Wall Push-ups', ['SHOULDER', 'ELBOW', 'WRIST'], 165, 130, 24),
+  standingConfig('standing-heel-raises', 'Heel Raises', ['FOOT_INDEX', 'HEEL', 'ANKLE'], 96, 106, 12, true),
+  standingConfig('toe-raises', 'Toe Raises', ['FOOT_INDEX', 'HEEL', 'ANKLE'], 86, 75, 10, true),
+  standingConfig('standing-hip-abduction', 'Standing Hip Abduction', ['SHOULDER', 'HIP', 'ANKLE'], 170, 155, 14),
+  standingConfig('standing-march', 'Standing March', ['SHOULDER', 'HIP', 'KNEE'], 165, 130, 24),
+  // The walking detector uses foot positions directly. Only its visibility and timing limits apply.
+  standingConfig('heel-to-toe-walking', 'Heel-to-Toe Walking', ['HEEL', 'ANKLE', 'FOOT_INDEX'], 90, 110, 10),
+];
+
 const EXERCISE_POSE_CONFIGS: Readonly<Record<string, ExerciseConfig>> = {
   [SEATED_KNEE_EXTENSION.id]: SEATED_KNEE_EXTENSION,
   [SEATED_ARM_RAISE.id]: SEATED_ARM_RAISE,
   [SIT_TO_STAND.id]: SIT_TO_STAND,
+  ...Object.fromEntries(standingConfigs.map(config => [config.id, config])),
 };
 
 /**
@@ -510,6 +547,7 @@ const GUIDED_POSE_CONFIGS: Readonly<Record<string, ExerciseConfig>> = {
    * and tuning the exercise can never drift from the yoga step using it.
    */
   [SIT_TO_STAND.id]: SIT_TO_STAND,
+  ...Object.fromEntries(standingConfigs.map(config => [config.id, config])),
 };
 
 /**
@@ -535,6 +573,15 @@ export function getExerciseConfig(id?: string | string[] | null): ExerciseConfig
   const key = firstId(id);
   if (key === null) return undefined;
   return EXERCISE_POSE_CONFIGS[key];
+}
+
+/** The three original exercise sessions coach a timed hold; guided activities use their own timing. */
+export function getExerciseSessionConfig(id?: string | string[] | null): ExerciseConfig | undefined {
+  const config = getExerciseConfig(id);
+  if (config === SEATED_KNEE_EXTENSION || config === SEATED_ARM_RAISE || config === SIT_TO_STAND) {
+    return { ...config, thresholds: { ...config.thresholds, minExtendedHoldMs: 3000 } };
+  }
+  return config;
 }
 
 /**

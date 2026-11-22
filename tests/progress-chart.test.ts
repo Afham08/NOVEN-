@@ -136,7 +136,7 @@ export function run() {
   suite('progress: the score card hint matches the real state', () => {
     check('loading reads as loading, not as zero', progressHint(null, null) === 'Reading your saved sessions.');
 
-    const empty = { points: [], sessionsInWindow: 0, scoredInWindow: 0, guidedInWindow: 0, latest: null, average: null, highest: null, lowest: null, windowStartDayKey: '2026-08-30', windowDays: 30 };
+    const empty = { points: [], sessionsInWindow: 0, scoredInWindow: 0, guidedInWindow: 0, walkingInWindow: 0, latest: null, average: null, highest: null, lowest: null, windowStartDayKey: '2026-08-30', windowDays: 30 };
     check('no sessions says so', progressHint(empty, 0).includes('No sessions'));
     check('sessions but none recent says so', progressHint(empty, 4).includes('No sessions'));
 
@@ -159,7 +159,7 @@ export function run() {
       points: [{ id: 'a', completedAt: new Date().toISOString(), dayKey: '2026-09-28', score: 84 }],
       sessionsInWindow: 1,
       scoredInWindow: 1,
-      guidedInWindow: 0,
+      guidedInWindow: 0, walkingInWindow: 0,
       latest: { id: 'a', completedAt: new Date().toISOString(), dayKey: '2026-09-28', score: 84 },
       average: 84,
       highest: 84,

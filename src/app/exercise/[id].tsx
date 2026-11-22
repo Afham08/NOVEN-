@@ -14,6 +14,7 @@ import { formatConsistencyLabel, formatDurationLabel, formatPaceLabel, formatRan
 import { isPoseTracked } from '@/exercise/pose-configs';
 import type { SessionRecord } from '@/exercise/session-store';
 import { sessionStore } from '@/exercise/session-storage';
+import { useLanguage } from '@/hooks/use-language';
 import { useTheme } from '@/hooks/use-theme';
 
 export function generateStaticParams() {
@@ -25,6 +26,7 @@ export default function ExerciseDetailScreen() {
   const router = useRouter();
   const theme = useTheme();
   const exercise = getExerciseById(id);
+  const { language, t } = useLanguage();
 
   /*
    * Whether NOVEN can watch this movement at all is decided by the pose config
@@ -65,20 +67,22 @@ export default function ExerciseDetailScreen() {
     );
   }
 
+  const kn = language === 'kn';
+  const copy = (kn && exercise.kannada) || exercise;
   return (
     <Screen>
-      <Header title={exercise.name} />
+      <Header title={copy.name} />
       <Text style={[styles.meta, { color: theme.text }]}>
-        {exercise.target} · {describeDifficulty(exercise.difficulty)} ·{' '}
-        {formatDuration(exercise.durationSeconds)}
+        {copy.target} · {kn ? { beginner: 'ಸುಲಭ', intermediate: 'ಮಧ್ಯಮ', advanced: 'ಕಠಿಣ' }[exercise.difficulty] : describeDifficulty(exercise.difficulty)} ·{' '}
+        {kn ? `${Math.max(1, Math.round(exercise.durationSeconds / 60))} ನಿಮಿಷ` : formatDuration(exercise.durationSeconds)}
       </Text>
       <Text style={[styles.description, { color: theme.textSecondary }]}>
-        {exercise.description}
+        {copy.description}
       </Text>
 
-      <SectionHeader accent title="How to do it" />
+      <SectionHeader accent title={kn ? 'ಮಾಡುವ ವಿಧಾನ' : 'How to do it'} />
       <Card variant="surface" gap={Spacing.four}>
-        {exercise.instructions.map((instruction, index) => (
+        {copy.instructions.map((instruction, index) => (
           <View key={index} style={styles.stepRow}>
             <View style={[styles.stepNumber, { backgroundColor: theme.sageSoft }]}>
               <Text style={[styles.stepNumberText, { color: theme.accentSecondary }]}>
@@ -90,9 +94,11 @@ export default function ExerciseDetailScreen() {
         ))}
       </Card>
 
-      <SectionHeader accent title="Safety" />
+      {copy.cameraHint && <Text style={[styles.description, { color: theme.textSecondary }]}>{copy.cameraHint}</Text>}
+
+      <SectionHeader accent title={kn ? 'ಸುರಕ್ಷತೆ' : 'Safety'} />
       <Card variant="tint">
-        <Text style={[styles.safetyText, { color: theme.text }]}>{exercise.safetyNote}</Text>
+        <Text style={[styles.safetyText, { color: theme.text }]}>{copy.safetyNote}</Text>
       </Card>
 
       {/*
@@ -103,7 +109,7 @@ export default function ExerciseDetailScreen() {
         live finish uses, and nothing in this section invents a number the
         session did not measure — a session with no pace shows no pace.
       */}
-      <SectionHeader accent title="Your sessions" />
+      <SectionHeader accent title={kn ? 'ನಿಮ್ಮ ಅವಧಿಗಳು' : 'Your sessions'} />
       <SessionHistory
         store={sessionStore}
         onOpenSession={openSession}
@@ -114,7 +120,7 @@ export default function ExerciseDetailScreen() {
       {tracked ? (
         <Button
           variant="primary"
-          title="Start Exercise"
+          title={t('startExercise')}
           onPress={() =>
             router.push({ pathname: '/exercise/session', params: { id: exercise.id } })
           }

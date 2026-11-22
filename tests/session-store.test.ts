@@ -666,10 +666,10 @@ export function run(): void {
     // The count is phrased the same way the Result screen phrases it, so the two
     // never disagree about the same session.
     check(
-      'the count is phrased as exercises completed',
-      code.includes('exercise') && code.includes('exercises') && code.includes('completed'),
+      'the count is phrased as reps completed',
+      code.includes('rep') && code.includes('reps') && code.includes('completed'),
     );
-    check('the singular is handled', code.includes("reps === 1 ? 'exercise' : 'exercises'"));
+    check('the singular is handled', code.includes("reps === 1 ? 'rep' : 'reps'"));
 
     // A metric the engine could not measure must be hidden, not shown as a zero.
     check(

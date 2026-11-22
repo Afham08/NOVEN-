@@ -68,6 +68,9 @@ export function run(): void {
     for (const exercise of exercisesCatalog) {
       check(`${exercise.id} has camera thresholds to be measured against`, isPoseTracked(exercise.id), exercise.id);
     }
+    const session = stripComments(read('exercise', 'session.tsx'));
+    check('the live counter uses the tested session config without overriding hold times',
+      session.includes('const config = getExerciseSessionConfig(id)') && session.includes('new SessionEngine(config)'));
     check('the registry has a config for every catalogue entry', exercisesCatalog.every((e) => getExerciseConfig(e.id) !== undefined));
     check('and the registry has nothing extra', poseTrackedConfigs.length === exercisesCatalog.length, `${poseTrackedConfigs.length} vs ${exercisesCatalog.length}`);
   });
@@ -268,7 +271,7 @@ check(
       detail.includes("from '@/exercise/session-storage'") && detail.includes('store={sessionStore}'),
     );
     check("it lists only this exercise's sessions", detail.includes('exerciseId={exercise.id}'));
-    check('the section is labelled', detail.includes('title="Your sessions"'));
+    check('the section is labelled', detail.includes("'Your sessions'") && detail.includes("'ನಿಮ್ಮ ಅವಧಿಗಳು'"));
     check(
       'a row reopens the existing result screen',
       detail.includes("pathname: '/exercise/result'"),
