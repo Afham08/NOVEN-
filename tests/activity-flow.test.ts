@@ -476,16 +476,16 @@ check(
     const appTabs = fs.readFileSync(fromComponents('app-tabs.tsx'), 'utf8');
     const tabCode = stripComments(appTabs);
 
-    for (const tab of ['index', 'activities', 'progress', 'family']) {
+    for (const tab of ['index', 'activities', 'progress', 'settings']) {
       check(`the ${tab} tab still exists`, exists('(tabs)', `${tab}.tsx`), tab);
     }
     check('the tab bar still lists exactly four screens', tabCode.split('name=').length - 1 === 4, tabCode);
-    for (const tab of ['index', 'activities', 'progress', 'family']) {
+    for (const tab of ['index', 'activities', 'progress', 'settings']) {
       check(`the tab bar still shows the ${tab} screen`, tabCode.includes(`name="${tab}"`), tab);
     }
     check('no activity was given a tab', !/name="(yoga|meditation|wellness|exercise)"/.test(tabCode), tabCode);
 
-    for (const route of ['exercise/index', 'yoga', 'meditation', 'wellness', 'settings/index']) {
+    for (const route of ['exercise/index', 'yoga', 'meditation', 'wellness', 'settings/family']) {
       check(`${route} is still a stack route`, layout.includes(`name="${route}"`), route);
     }
     check('the bottom bar is not given a new entry by this work', !/name="(yoga|meditation|wellness)"[\s\S]{0,200}tabBarIcon/.test(layout));

@@ -1,3 +1,4 @@
+import { dashboard, localDay } from '../src/exercise/dashboard';
 import { check, suite } from './harness';
 
 import {
@@ -45,6 +46,24 @@ function sessions(...offsetsAndScores: Array<[number, number | null]>) {
 }
 
 export function run() {
+  suite('dashboard: local reporting windows and mixed sessions', () => {
+    const records: SessionRecord[] = Array.from({length: 9}, (_, i) => ({
+      ...sessionOn(-i, i % 2 ? null : 80), exerciseName: 'Chair raise', exerciseId: 'chair-raise',
+      durationSeconds: 60, reps: i % 2 ? 0 : 8, paceRpm: null, rangeMinDeg: null, rangeMaxDeg: null,
+      activityKind: i % 2 ? 'yoga' : undefined,
+    }));
+    const weekly = dashboard(records, 'Weekly', localDay(NOW));
+    check('rolling week includes today and six preceding local dates', weekly.filtered.length === 7);
+    check('exercise and total times remain distinct', weekly.seconds === 420 && weekly.exerciseSeconds === 240);
+    check('legacy exercise reps included', weekly.reps === 32 && weekly.exercises[0].sessions === 4);
+    check('streak can cross the weekly filter', weekly.streak === 9 && weekly.consistency === 100);
+    check('weekly comparison includes prior days outside filter', weekly.thisWeek === 7 && weekly.lastWeek === 2);
+    check('no missing measurement converted to zero', weekly.buckets[1].measured === 0 && weekly.buckets[0].scoreTotal === 80);
+    check('breakdown includes guided sessions', weekly.kinds.get('yoga') === 3);
+    const all = dashboard(records, 'All time', localDay(NOW));
+    check('all time starts at first stored session', all.days === 9 && all.filtered.length === 9);
+    check('empty period is well-defined', dashboard([], 'All time', localDay(NOW)).consistency === 0);
+  });
   suite('progress: 1-2. empty history', () => {
     const summary = buildProgress([], NOW);
 

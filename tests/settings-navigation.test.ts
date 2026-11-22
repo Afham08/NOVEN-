@@ -62,7 +62,7 @@ function stripComments(source: string): string {
  * suite worthless.
  */
 function readerVisibleStrings(source: string): string[] {
-  const code = stripComments(source);
+  const code = stripComments(source).replace(/^import\s.*?;$/gm, '');
   const found: string[] = [];
   for (const match of code.matchAll(/>\s*([^<>{}]+?)\s*</g)) found.push(match[1]);
   for (const match of code.matchAll(/"([^"\n]+)"/g)) found.push(match[1]);
@@ -82,7 +82,7 @@ function webTabTriggers(source: string): string[] {
 }
 
 /** The four primary destinations, in the order they must appear everywhere. */
-const PRIMARY_TABS = ['index', 'activities', 'progress', 'family'] as const;
+const PRIMARY_TABS = ['index', 'activities', 'progress', 'settings'] as const;
 
 /** The things a person can do, which must NOT each own a tab. */
 const ACTIVITY_DESTINATIONS = ['exercise', 'yoga', 'meditation', 'wellness'] as const;
@@ -97,7 +97,7 @@ const SETTINGS_SECTIONS = [
 ] as const;
 
 const SCREENS: Array<[string, string]> = [
-  ['settings/index.tsx', read('settings', 'index.tsx')],
+  ['(tabs)/settings.tsx', read('(tabs)', 'settings.tsx')],
   ['settings/language.tsx', read('settings', 'language.tsx')],
   ['settings/appearance.tsx', read('settings', 'appearance.tsx')],
   ['settings/notifications.tsx', read('settings', 'notifications.tsx')],
@@ -113,7 +113,7 @@ const SCREENS: Array<[string, string]> = [
  */
 const PASS_THROUGH_ROUTES: Array<[string, string]> = [
   ['settings/family.tsx', read('settings', 'family.tsx')],
-  ['(tabs)/family.tsx', read('(tabs)', 'family.tsx')],
+  ['family.tsx', read('family.tsx')],
 ] as const;
 
 export function run() {
@@ -128,7 +128,7 @@ export function run() {
     check('the native tab bar has exactly four items', native.length === 4, native);
     check('the web tab bar has exactly four items', web.length === 4, web);
     check(
-      'the native tab bar is Home, Activities, Progress, Family',
+      'the native tab bar is Home, Activities, Progress, Settings',
       native.join(',') === PRIMARY_TABS.join(','),
       native,
     );
@@ -217,7 +217,7 @@ export function run() {
         root.includes('backgroundColor={palette.background}'));
     check('native tab icon tint uses the saved theme palette', tabs.includes('tintColor={colors.accentStrong}'));
     check('Home responds to the active palette', home.includes('useTheme()') && home.includes('theme.background'));
-    check('Progress score summary uses the Light-aware surface variant', /<ScoreCard[\s\S]*?variant="surface"/.test(progress));
+    check('Progress uses the theme-aware dashboard', progress.includes('<AnalyticsDashboard') && readComponent('progress','analytics-dashboard.tsx').includes('useTheme()'));
     check('primary links use the active semantic accent', themedText.includes('theme.accentStrong') && !themedText.includes('Colors.light.accent'));
     check('status dots use semantic accent roles rather than palette literals',
       statusChip.includes('theme.accentStrong') && statusChip.includes('theme.accentSecondary') && !/#(?:[0-9A-Fa-f]{3,8})\b/.test(statusChip));
@@ -271,27 +271,15 @@ export function run() {
     }
   });
 
-  suite('navigation: Settings is off the tab bar but still reachable', () => {
+  suite('navigation: Settings is reachable from Home and the tab bar', () => {
     const nativeTabs = readComponent('app-tabs.tsx');
     const webTabs = readComponent('app-tabs.web.tsx');
     const home = read('(tabs)', 'index.tsx');
     const rootLayout = read('_layout.tsx');
 
-    check('the native tab bar has no Settings tab', !nativeTabs.includes('name="settings"'));
-    check('the web tab bar has no Settings tab', !webTabs.includes('name="settings"'));
-    check('the native tab bar does not label a tab Settings', !/>Settings</.test(nativeTabs));
-    check('the web tab bar does not label a tab Settings', !/>Settings</.test(webTabs));
-
-    // The /settings route itself must survive the move out of the tabs group.
-    check('the settings list still exists', exists('settings', 'index.tsx'));
-    check('the root layout registers settings/index', rootLayout.includes('name="settings/index"'));
-    check(
-      'the /settings route has exactly one owner',
-      exists('settings', 'index.tsx') && !exists('settings.tsx') && !exists('(tabs)', 'settings.tsx'),
-    );
-
-    // Reachable from Home, in more than one way, because Settings is no longer
-    // one tap away in the bar.
+    check('native Settings replaces Family', nativeTabs.includes('name="settings"') && !nativeTabs.includes('name="family"'));
+    check('web Settings replaces Family', webTabs.includes('href="/settings"') && !webTabs.includes('name="family"'));
+    check('Settings belongs to the tabs', exists('(tabs)', 'settings.tsx') && !rootLayout.includes('name="settings/index"'));
     check('Home links to settings', home.includes("router.push('/settings')"));
     check('Home has a dedicated Settings action', home.includes('accessibilityLabel={t(\'settings\')}'));
     check('Home labels the Settings action for screen readers', home.includes('accessibilityHint='));
@@ -333,11 +321,11 @@ export function run() {
     const progressCalc = fs.readFileSync(fromSrc('exercise', 'progress.ts'), 'utf8');
 
     // It must reuse the existing implementation rather than grow a second one.
-    check('the Progress tab renders the real progress view', progressTab.includes('<ProgressSection'));
+    check('the Progress tab renders the real progress view', progressTab.includes('<AnalyticsDashboard'));
     check('the Progress tab renders real session history', progressTab.includes('<SessionHistory'));
     check('the Progress tab reads the real session store', progressTab.includes('sessionStore'));
     check('the Progress tab reuses the shared progress hook', progressTab.includes('useProgress('));
-    check('the Progress tab labels the measured range comparison', progressTab.includes('label="Rep range similarity"'));
+    check('the Progress tab labels the measured range comparison', readComponent('progress','analytics-charts.tsx').includes('rep range similarity'));
 
     // No second scoring system, anywhere in the tab.
     const code = stripComments(progressTab);
@@ -357,12 +345,12 @@ export function run() {
   });
 
   suite('navigation: the Family tab and the Family row show one screen', () => {
-    const familyTab = read('(tabs)', 'family.tsx');
+    const familyTab = read('family.tsx');
     const familySettings = read('settings', 'family.tsx');
     const familyScreen = readComponent('family', 'family-screen.tsx');
 
     // Two copies of a screen drift apart, so both routes must render the same one.
-    check('the Family tab renders the shared Family screen', familyTab.includes('<FamilyScreen'));
+    check('old Family links open Settings Family', familyTab.includes('href="/settings/family"'));
     check('the Settings Family row renders the shared Family screen', familySettings.includes('<FamilyScreen'));
     check('the shared Family screen is a component', familyScreen.includes('export function FamilyScreen'));
     check('the tab draws its own heading', !familyTab.includes('showHeader={false}'));
@@ -418,7 +406,7 @@ export function run() {
   });
 
   suite('settings: every section is reachable and registered', () => {
-    const settingsScreen = read('settings', 'index.tsx');
+    const settingsScreen = read('(tabs)', 'settings.tsx');
     const rootLayout = read('_layout.tsx');
 
     for (const section of SETTINGS_SECTIONS) {
@@ -510,7 +498,7 @@ export function run() {
     const progress = read('(tabs)', 'progress.tsx');
 
     // --- What was removed: intro copy that restated the title. ---
-    check('Settings has no introductory subtitle', !/subtitle=/.test(read('settings', 'index.tsx')));
+    check('Settings has no introductory subtitle', !/subtitle=/.test(read('(tabs)', 'settings.tsx')));
     // Language is a list of rows, so it needs no prose at all. Appearance now has
     // exactly one Text — the "Selected" marker, which is a state indicator rather
     // than a paragraph — so the check is narrowed to what it was protecting: no
@@ -585,7 +573,7 @@ export function run() {
 
     // --- Titles are untouched, which is the whole premise of the cleanup. ---
     const titles: Array<[string, string, string]> = [
-      ['settings/index.tsx', read('settings', 'index.tsx'), 'Settings'],
+      ['(tabs)/settings.tsx', read('(tabs)', 'settings.tsx'), 'Settings'],
       ['language.tsx', language, 'Language'],
       ['appearance.tsx', appearance, 'Appearance'],
       ['notifications.tsx', notifications, 'Notifications'],
@@ -597,7 +585,7 @@ export function run() {
       check(`${name} keeps its title`, source.includes(`title="${title}"`), source);
     }
     check('the settings list still names all six sections', (() => {
-      const list = read('settings', 'index.tsx');
+      const list = read('(tabs)', 'settings.tsx');
       return ['Family', 'Language', 'Appearance', 'Notifications', 'Privacy & Safety', 'About OSMIUM'].every((t) =>
         list.includes(`title: '${t}'`),
       );
@@ -611,7 +599,7 @@ export function run() {
 
     // No screen was reduced to nothing: each still has wording a reader sees.
     for (const [name, source] of [
-      ['settings/index.tsx', read('settings', 'index.tsx')],
+      ['(tabs)/settings.tsx', read('(tabs)', 'settings.tsx')],
       ['language.tsx', language],
       ['appearance.tsx', appearance],
       ['notifications.tsx', notifications],
@@ -737,7 +725,7 @@ export function run() {
     const familyWords = readerVisibleStrings(readComponent('family', 'family-screen.tsx'));
     check('the extractor finds the add action', familyWords.some((s) => s.includes('Add family member')));
     check('the extractor finds the empty state', familyWords.some((s) => s.includes('No family members yet')));
-    const settingsWords = readerVisibleStrings(read('settings', 'index.tsx'));
+    const settingsWords = readerVisibleStrings(read('(tabs)', 'settings.tsx'));
     for (const heading of ['Family', 'Language', 'Appearance', 'Notifications', 'Privacy & Safety', 'About OSMIUM']) {
       check(`the extractor finds the ${heading} heading`, settingsWords.some((s) => s.trim() === heading));
     }

@@ -26,7 +26,7 @@ export function Screen({ children, contentStyle, onBack }: ScreenProps) {
   const path = usePathname();
   const router = useRouter();
   const theme = useTheme();
-  const isTab = ['/activities', '/progress', '/family'].includes(path);
+  const isTab = ['/activities', '/progress', '/settings'].includes(path);
   const navigationTitle = activityNavigationTitle(path);
   const target = useRef<View | null>(null);
   return (

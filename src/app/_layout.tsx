@@ -144,7 +144,6 @@ function RootNavigator() {
           Settings is not a tab. It is reached from Home and its own sections,
           and each of these returns to Home when the back button is used.
         */}
-        <Stack.Screen name="settings/index" options={{ title: 'Settings' }} />
         <Stack.Screen name="settings/family" options={{ title: 'Family' }} />
         <Stack.Screen name="settings/language" options={{ title: 'Language' }} />
         <Stack.Screen name="settings/appearance" options={{ title: 'Appearance' }} />
