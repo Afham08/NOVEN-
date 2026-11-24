@@ -133,6 +133,8 @@ function RootNavigator() {
           header here is the stack's, and each screen draws its own heading inside
           it, exactly as the exercise flow does.
         */}
+        <Stack.Screen name="yoga/session" options={{ headerShown: false, gestureEnabled: false }} />
+        <Stack.Screen name="yoga/result" options={{ headerShown: false }} />
         <Stack.Screen name="yoga/[id]" options={{ headerShown: false }} />
         <Stack.Screen name="meditation/[id]" options={{ headerShown: false }} />
         <Stack.Screen name="wellness/[id]" options={{ headerShown: false }} />
@@ -142,7 +144,6 @@ function RootNavigator() {
           Settings is not a tab. It is reached from Home and its own sections,
           and each of these returns to Home when the back button is used.
         */}
-        <Stack.Screen name="settings/index" options={{ title: 'Settings' }} />
         <Stack.Screen name="settings/family" options={{ title: 'Family' }} />
         <Stack.Screen name="settings/language" options={{ title: 'Language' }} />
         <Stack.Screen name="settings/appearance" options={{ title: 'Appearance' }} />

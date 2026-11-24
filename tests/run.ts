@@ -31,6 +31,7 @@ import { run as runSessionStoreConcurrency } from './session-store-concurrency.t
 import { run as runSettingsNavigation } from './settings-navigation.test';
 import { run as runThemePreference } from './theme-preference.test';
 import { run as runVoiceFeedback } from './voice-feedback.test';
+import { run as runSeatedYoga } from './seated-yoga.test';
 import { run as runYogaPoseRules } from './yoga-pose-rules.test';
 
 async function main(): Promise<void> {
@@ -65,6 +66,7 @@ async function main(): Promise<void> {
   runProgressChart();
   runThemePreference();
   runSettingsNavigation();
+  runSeatedYoga();
   runYogaPoseRules();
 
   // The persistence suites are asynchronous, so every suite has to finish before

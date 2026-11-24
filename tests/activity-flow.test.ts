@@ -120,7 +120,7 @@ export function run(): void {
   suite('activity flow: the list screens link to their detail routes', () => {
     for (const kind of ['yoga', 'meditation', 'wellness'] as const) {
       const list = read(`${kind}.tsx`);
-      check(`${kind} links into its own detail route`, list.includes(`\`/${kind}/\${`), stripComments(list));
+      check(`${kind} links into its own detail route`, (kind === 'yoga' ? list.includes("pathname: '/yoga/[id]'") : list.includes(`\`/${kind}/\${`)), stripComments(list));
     }
   });
 
@@ -462,7 +462,7 @@ check(
   suite('activity screens: durations come from the catalogue, never typed in', () => {
     for (const kind of ['yoga', 'meditation', 'wellness'] as const) {
       const list = read(`${kind}.tsx`);
-      check(`${kind} reads its lengths from the catalogue`, (kind === 'meditation' ? list.includes('orbSessions.map') && list.includes('meditationSessions.map') : list.includes('guidedCatalog')), list);
+      check(`${kind} reads its lengths from the catalogue`, (kind === 'meditation' ? list.includes('orbSessions.map') && list.includes('meditationSessions.map') : kind === 'yoga' ? list.includes('asanas.map') && list.includes('asana.targetSeconds') : list.includes('guidedCatalog')), list);
       check(`${kind} types no duration inline`, !/\b\d+\s*(sec|min|minutes|seconds)\b/.test(stripComments(list)), stripComments(list));
     }
   });
@@ -476,16 +476,16 @@ check(
     const appTabs = fs.readFileSync(fromComponents('app-tabs.tsx'), 'utf8');
     const tabCode = stripComments(appTabs);
 
-    for (const tab of ['index', 'activities', 'progress', 'family']) {
+    for (const tab of ['index', 'activities', 'progress', 'settings']) {
       check(`the ${tab} tab still exists`, exists('(tabs)', `${tab}.tsx`), tab);
     }
     check('the tab bar still lists exactly four screens', tabCode.split('name=').length - 1 === 4, tabCode);
-    for (const tab of ['index', 'activities', 'progress', 'family']) {
+    for (const tab of ['index', 'activities', 'progress', 'settings']) {
       check(`the tab bar still shows the ${tab} screen`, tabCode.includes(`name="${tab}"`), tab);
     }
     check('no activity was given a tab', !/name="(yoga|meditation|wellness|exercise)"/.test(tabCode), tabCode);
 
-    for (const route of ['exercise/index', 'yoga', 'meditation', 'wellness', 'settings/index']) {
+    for (const route of ['exercise/index', 'yoga', 'meditation', 'wellness', 'settings/family']) {
       check(`${route} is still a stack route`, layout.includes(`name="${route}"`), route);
     }
     check('the bottom bar is not given a new entry by this work', !/name="(yoga|meditation|wellness)"[\s\S]{0,200}tabBarIcon/.test(layout));

@@ -1,3 +1,5 @@
+import { findAsana } from '../yoga/asanas';
+import { isYogaResult, type YogaResult } from '../yoga/session';
 import type { SessionMetrics } from './types';
 
 /**
@@ -95,6 +97,7 @@ export type SessionRecord = SessionMetrics & {
   activityKind?: SessionKind;
   /** Guided steps finished. Absent means a camera session, which has none. */
   stepsCompleted?: number;
+  yoga?: YogaResult;
 };
 
 export type SessionHistoryLoadIssue = {
@@ -132,6 +135,7 @@ export type NewSessionRecord = {
   metrics: SessionMetrics;
   activityKind?: SessionKind;
   stepsCompleted?: number;
+  yoga?: YogaResult;
 };
 
 /** Milliseconds in a day, used only for the "Today"/"Yesterday" labels. */
@@ -171,6 +175,7 @@ export function createSessionRecord(input: NewSessionRecord): SessionRecord {
     // no longer tell "written before this field existed" from "explicitly an
     // exercise". Omitting the key outright is the only unambiguous form.
     ...(input.activityKind !== undefined ? { activityKind: input.activityKind } : {}),
+    ...(input.yoga ? { yoga: input.yoga } : {}),
     ...(input.stepsCompleted !== undefined ? { stepsCompleted: input.stepsCompleted } : {}),
   };
 }
@@ -275,7 +280,10 @@ export function parseSessionRecord(value: unknown): SessionRecord | null {
     stepsCompleted = parsedSteps;
   }
 
+  const yoga = raw.yoga;
+  if (yoga !== undefined && (activityKind !== 'yoga' || !isYogaResult(yoga, findAsana(exerciseId)))) return null;
   return {
+    ...(yoga !== undefined ? { yoga } : {}),
     id,
     exerciseId,
     exerciseName,

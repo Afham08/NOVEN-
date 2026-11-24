@@ -35,6 +35,7 @@ export type SessionHistoryProps = {
    * stored on the device is every session, not the filtered view.
    */
   exerciseId?: string;
+  activityLabel?: 'asana';
 };
 
 /** Most recent sessions shown before the list is cut off. */
@@ -79,6 +80,7 @@ export function SessionHistory({
   limit = DEFAULT_LIMIT,
   exerciseId,
   loadedRecords,
+  activityLabel,
 }: SessionHistoryProps) {
   const theme = useTheme();
   const externallyManaged = loadedRecords !== undefined;
@@ -147,12 +149,12 @@ export function SessionHistory({
     return (
       <Card variant="surface" gap={Spacing.two}>
         <Text style={[styles.emptyTitle, { color: theme.heading }]}>
-          {exerciseId === undefined ? 'No sessions yet' : 'No sessions for this exercise yet'}
+          {exerciseId === undefined ? 'No sessions yet' : activityLabel === 'asana' ? 'No sessions for this asana yet' : 'No sessions for this exercise yet'}
         </Text>
         <Text style={[styles.emptyBody, { color: theme.textSecondary }]}>
           {exerciseId === undefined
             ? 'Finish an exercise, a yoga routine, or a calm moment, and it will appear here.'
-            : 'Finish this exercise and it will appear here.'}
+            : activityLabel === 'asana' ? 'Your yoga sessions will appear here.' : 'Finish this exercise and it will appear here.'}
         </Text>
       </Card>
     );

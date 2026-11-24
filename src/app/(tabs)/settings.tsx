@@ -67,16 +67,6 @@ export default function SettingsScreen() {
 
   return (
     <Screen>
-      {/*
-        The page heading is the stack header above this screen, which is also the
-        visible way back to Home. Repeating it here would put "Settings" twice in
-        the same few centimetres.
-      */}
-      {/*
-        No subtitle. The stack header above already says "Settings", and every
-        row below names the thing it opens, so an introductory line explaining
-        that you can change how the app works was just the title a third time.
-      */}
       <SectionHeader accent title="Settings" />
 
       {SECTIONS.map((section) => (

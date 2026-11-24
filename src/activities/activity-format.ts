@@ -1,3 +1,4 @@
+import { completedHolds } from '../yoga/session';
 import { getExerciseById } from '../data/exercises';
 import type { SessionRecord } from '../exercise/session-store';
 import { findGuidedActivity } from './catalog';
@@ -78,6 +79,10 @@ export function describeSessionOutcome(record: SessionRecord): string {
     return `${record.reps} ${record.reps === 1 ? 'rep' : 'reps'} completed`;
   }
 
+  if (record.yoga) {
+    const done = completedHolds(record.yoga);
+    return `${record.yoga.status === 'completed' ? 'Completed' : 'Ended early'} · ${done} ${done === 1 ? 'hold' : 'holds'}`;
+  }
   const activity = findGuidedActivity(record.exerciseId);
   const total = activity?.steps.length ?? 0;
   const done = stepsCompletedFor(record);

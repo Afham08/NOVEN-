@@ -1,3 +1,4 @@
+import { asanas } from '@/yoga/asanas';
 import { useRouter } from 'expo-router';
 import { SymbolView } from 'expo-symbols';
 
@@ -134,7 +135,7 @@ export default function ActivitiesScreen() {
       />
       <ActivityCard
         title="Yoga routines"
-        description={`${guidedCatalog('yoga').length} seated routines, timed for you.`}
+        description={`${asanas.length} seated routines, timed for you.`}
         rightLabel="Open"
         onPress={() => router.push('/yoga')}
       />
