@@ -125,7 +125,6 @@ function RootNavigator() {
         <Stack.Screen name="exercise/index" options={{ headerShown: false }} />
         <Stack.Screen name="yoga" options={{ headerShown: false }} />
         <Stack.Screen name="meditation" options={{ headerShown: false }} />
-        <Stack.Screen name="wellness" options={{ headerShown: false }} />
 
         {/*
           One screen runs every guided activity for all three kinds, so there is
@@ -137,7 +136,6 @@ function RootNavigator() {
         <Stack.Screen name="yoga/result" options={{ headerShown: false }} />
         <Stack.Screen name="yoga/[id]" options={{ headerShown: false }} />
         <Stack.Screen name="meditation/[id]" options={{ headerShown: false }} />
-        <Stack.Screen name="wellness/[id]" options={{ headerShown: false }} />
         <Stack.Screen name="activity-result" options={{ headerShown: false }} />
 
         {/*

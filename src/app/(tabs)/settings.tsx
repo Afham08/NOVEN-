@@ -3,6 +3,7 @@ import { useRouter } from 'expo-router';
 import { ActivityCard } from '@/components/cards/activity-card';
 import { Screen } from '@/components/layout/screen';
 import { SectionHeader } from '@/components/ui/section-header';
+import { useLanguage } from '@/hooks/use-language';
 
 /**
  * The six settings sections, in the order a person is most likely to want them.
@@ -64,6 +65,8 @@ const SECTIONS = [
 
 export default function SettingsScreen() {
   const router = useRouter();
+  const { language } = useLanguage();
+  const languageName = { en: 'English', kn: 'ಕನ್ನಡ', hi: 'हिन्दी', ta: 'தமிழ்' }[language];
 
   return (
     <Screen>
@@ -74,7 +77,7 @@ export default function SettingsScreen() {
           key={section.href}
           title={section.title}
           description={section.description}
-          rightLabel={section.detail}
+          rightLabel={section.href === '/settings/language' ? languageName : section.detail}
           onPress={() => router.push(section.href)}
         />
       ))}

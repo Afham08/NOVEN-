@@ -1,8 +1,10 @@
 import type { LandmarkEventPayload } from '../../modules/pose-tracker';
 import { isTrustedLandmark } from './landmark-trust';
+import { placementScore } from './movement-score';
 
 // Compare heel positions in foot lengths so framing and walking direction can vary.
 export class TandemSteps {
+  lastScore: number | null = null;
   private baseline: [number, number] | null = null;
   private direction = 0;
   private lastLead: number | null = null;
@@ -11,6 +13,7 @@ export class TandemSteps {
   private lastTime: number | null = null;
 
   reset() {
+    this.lastScore = null;
     this.baseline = null;
     this.unscoredLanding = null;
     this.lastLead = null;
@@ -19,6 +22,7 @@ export class TandemSteps {
   }
 
   process(points: LandmarkEventPayload[], time: number, aspect: number, visibility: number, maxGap: number) {
+    this.lastScore = null;
     if (this.lastTime !== null && time <= this.lastTime) return false;
     if (this.lastTime !== null && time - this.lastTime > maxGap) this.reset();
     this.lastTime = time;
@@ -77,6 +81,7 @@ export class TandemSteps {
     this.baseline = heels;
     this.lastLead = lead;
     this.candidate = null;
+    if (newStep) this.lastScore = placementScore(gap, (heel.y - toe.y) / (length * aspect));
     return newStep;
   }
 }

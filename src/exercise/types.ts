@@ -134,6 +134,7 @@ export type RepFrame = {
 
 /** What a rep detector returns for a single processed frame. */
 export type RepOutcome = {
+  movementScore?: number | null;
   repCompleted: boolean;
   /** The person started returning before the configured hold finished. */
   shortHold?: boolean;

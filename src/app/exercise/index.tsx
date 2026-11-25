@@ -12,6 +12,7 @@ import { GlassFill } from '@/components/ui/glass';
 import { SectionHeader } from '@/components/ui/section-header';
 import { Colors, Radius, Spacing, Type } from '@/constants/theme';
 import { exercisesCatalog, Exercise } from '@/data/exercises';
+import { localizedExerciseListCopy } from '@/data/exercise-locales';
 import { useLanguage } from '@/hooks/use-language';
 import { useTheme } from '@/hooks/use-theme';
 
@@ -67,6 +68,7 @@ export default function ExerciseScreen() {
   };
 
   const getLocalizedName = (exercise: Exercise) => {
+    if (language === 'hi' || language === 'ta') return localizedExerciseListCopy(exercise, language).name;
     if (language === 'kn') {
       if (exercise.kannada) return exercise.kannada.name;
       if (exercise.id === 'seated-knee-extension') return t('seatedKneeExtension');
@@ -86,11 +88,12 @@ export default function ExerciseScreen() {
         {exercisesCatalog.map((exercise) => {
           const localizedName = getLocalizedName(exercise);
           const metaConfig = EXERCISE_TARGET_LABELS[exercise.id];
+          const localizedTarget = localizedExerciseListCopy(exercise, language).target;
           const targetMeta = metaConfig
-            ? language === 'kn' ? metaConfig.kn : metaConfig.en
+            ? language === 'kn' ? metaConfig.kn : language === 'en' ? metaConfig.en : `${localizedTarget} • ${t('setsOfTen')}`
              : language === 'kn'
               ? `${exercise.kannada?.target ?? exercise.target} • 3 ಸೆಟ್‌ಗಳು (ತಲಾ 10)`
-              : `${exercise.target} • 3 sets of 10 ${exercise.countUnit === 'step' ? 'steps' : 'reps'}`;
+              : `${localizedTarget} • ${t('setsOfTen')} ${exercise.countUnit === 'step' ? t('stepsUnit') : t('repsUnit')}`;
 
           return (
             <Card
@@ -136,10 +139,6 @@ export default function ExerciseScreen() {
                 </View>
 
                 <View style={styles.buttonRow}>
-                  {exerciseVideos[exercise.id] === undefined ? (
-                    <Button variant="secondary" title={language === 'kn' ? 'ಸೂಚನೆಗಳು' : 'Instructions'}
-                      onPress={() => router.push({ pathname: '/exercise/[id]', params: { id: exercise.id } })} />
-                  ) : (
                   <Pressable
                     accessibilityRole="button"
                     onPress={() => setPreviewExercise(exercise)}
@@ -152,10 +151,9 @@ export default function ExerciseScreen() {
                       },
                     ]}>
                     <Text style={[styles.previewPillText, { color: theme.secondaryButtonText }]}>
-                      {language === 'kn' ? t('preview') : 'Watch demo'}
+                      {t('watchDemo')}
                     </Text>
                   </Pressable>
-                  )}
 
                   {/* 2. Direct Start Hero Ember Button */}
                   <Pressable

@@ -1,4 +1,5 @@
 import type { RepFrame, RepOutcome, RepPhase, RepThresholds } from './types';
+import { MovementScoreTrace } from './movement-score';
 
 /**
  * State-machine rep counter. A rep is counted only when a full cycle is
@@ -13,6 +14,7 @@ import type { RepFrame, RepOutcome, RepPhase, RepThresholds } from './types';
  * act on anything. See `armed` below for why that precondition is load-bearing.
  */
 export class RepDetector {
+  private scoreTrace: MovementScoreTrace | null = null;
   private phase: RepPhase = 'rest';
   /**
    * False until the knee has genuinely been seen bent (angle <= bentAngleDeg).
@@ -141,6 +143,7 @@ export class RepDetector {
   }
 
   reset(): void {
+    this.scoreTrace = null;
     this.phase = 'rest';
     this.armed = false;
     this.extendedHold = 0;
@@ -167,6 +170,7 @@ export class RepDetector {
    * tail of a rep.
    */
   freeze(): void {
+    this.scoreTrace = null;
     this.phase = 'rest';
     this.armed = false;
     this.extendedHold = 0;
@@ -227,6 +231,12 @@ export class RepDetector {
     this.cycleMin = this.cycleMin === null ? angle : Math.min(this.cycleMin, angle);
     this.cycleMax = this.cycleMax === null ? angle : Math.max(this.cycleMax, angle);
 
+    if (this.phase === 'rest' && angle >= bentAngleDeg) {
+      this.scoreTrace = new MovementScoreTrace();
+      this.scoreTrace.start(this.cycleMin, timestampMs - 1);
+    }
+    this.scoreTrace?.add(angle, timestampMs);
+
     switch (this.phase) {
       case 'rest':
         this.extendedHold = 0;
@@ -283,7 +293,7 @@ export class RepDetector {
         if (angle <= bentAngleDeg) {
           this.restHold += 1;
           if (this.restHold >= holdFrames) {
-            return this.completeRep(timestampMs);
+            return this.completeRep(timestampMs, angle);
           }
         }
         // As in `extending`, a frame strictly BETWEEN the bands is intermediate
@@ -295,7 +305,7 @@ export class RepDetector {
     return { repCompleted: false, repRange: null, phase: this.phase, shortHold };
   }
 
-  private completeRep(timestampMs: number): RepOutcome {
+  private completeRep(timestampMs: number, angle: number): RepOutcome {
     const { minRangeDeg, minRepIntervalMs } = this.config;
 
     const min = this.cycleMin ?? Number.NaN;
@@ -305,6 +315,8 @@ export class RepDetector {
     const cooldownElapsed = timestampMs - this.lastRepAtMs >= minRepIntervalMs;
     const qualifies = Number.isFinite(range) && range >= minRangeDeg && cooldownElapsed;
 
+    const direction = this.config.extendedAngleDeg < this.config.bentAngleDeg ? -1 : 1;
+    const movementScore = this.scoreTrace?.finish(angle, this.config.extendedAngleDeg * direction, minRangeDeg) ?? null;
     this.resetCycle();
     this.phase = 'rest';
 
@@ -315,10 +327,11 @@ export class RepDetector {
     this.reps += 1;
     this.repRanges.push(range);
     this.lastRepAtMs = timestampMs;
-    return { repCompleted: true, repRange: range, phase: this.phase };
+    return { repCompleted: true, repRange: range, phase: this.phase, movementScore };
   }
 
   private resetCycle(): void {
+    this.scoreTrace = null;
     this.cycleMin = null;
     this.cycleMax = null;
     this.extendedHold = 0;

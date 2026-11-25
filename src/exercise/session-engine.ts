@@ -90,6 +90,8 @@ export class SessionEngine {
   private countedReps = 0;
   /** One entry per counted rep, so `repRanges.length === reps` always holds. */
   private countedRanges: number[] = [];
+  private countedScores: (number | null)[] = [];
+  get repScores(): (number | null)[] { return [...this.countedScores]; }
   /** Timestamp of the last COUNTED rep; drives the session-scoped cooldown. */
   private lastCountedAtMs: number | null = null;
   /** TEMPORARY: rate-limit state for the device readiness trace. */
@@ -148,6 +150,7 @@ export class SessionEngine {
     this.activeFrameTimestampMs = null;
     this.countedReps = 0;
     this.countedRanges = [];
+    this.countedScores = [];
     this.lastCountedAtMs = null;
     this.lastFeedback = setupFeedback();
     this.shortHoldUntilMs = 0;
@@ -293,7 +296,7 @@ export class SessionEngine {
     if (this.steps) {
       const { minVisibility, maxFrameGapMs } = this.config.thresholds;
       const counted = this.steps.process(landmarks, timestampMs, aspectRatio, minVisibility, maxFrameGapMs)
-        && this.countRep(timestampMs, null);
+        && this.countRep(timestampMs, null, this.steps.lastScore);
       return this.emit(phaseFeedback('extending', counted, this.config.id), counted);
     }
 
@@ -325,7 +328,7 @@ export class SessionEngine {
       // Requirement C: a non-finite angle never reaches a detector and never
       // widens the observed range.
       if (!Number.isFinite(angle)) {
-        if (this.config.id === 'supported-squat') this.detectors[side].freeze();
+        this.detectors[side].freeze();
         continue;
       }
       let detectorAngle = angle;
@@ -343,7 +346,7 @@ export class SessionEngine {
 
       const outcome = this.detectors[side].process({ angle: detectorAngle, timestampMs });
       if (outcome.shortHold) shortHoldThisFrame = true;
-      if (outcome.repCompleted && this.countRep(timestampMs, outcome.repRange)) {
+      if (outcome.repCompleted && this.countRep(timestampMs, outcome.repRange, outcome.movementScore ?? null)) {
         repCompletedThisFrame = true;
       }
     }
@@ -424,7 +427,7 @@ export class SessionEngine {
    * `repCompletedThisFrame`, so neither the HUD nor the voice announces a rep
    * the user did not perform.
    */
-  private countRep(timestampMs: number, repRange: number | null): boolean {
+  private countRep(timestampMs: number, repRange: number | null, score: number | null): boolean {
     const { minRepIntervalMs } = this.config.thresholds;
     const lastCountedAtMs = this.lastCountedAtMs;
 
@@ -434,6 +437,7 @@ export class SessionEngine {
     }
 
     this.countedReps += 1;
+    this.countedScores.push(score);
     if (repRange !== null) this.countedRanges.push(repRange);
     this.lastCountedAtMs = timestampMs;
     return true;

@@ -15,7 +15,6 @@ function activityNavigationTitle(path: string): string | null {
   if (path === '/exercise' || path.startsWith('/exercise/')) return 'Exercise';
   if (path === '/yoga' || path.startsWith('/yoga/')) return 'Yoga';
   if (path === '/meditation' || path.startsWith('/meditation/')) return 'Meditation';
-  if (path === '/wellness' || path.startsWith('/wellness/')) return 'Wellness';
   return null;
 }
 

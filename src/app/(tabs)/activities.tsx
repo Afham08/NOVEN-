@@ -7,11 +7,10 @@ import { Screen } from '@/components/layout/screen';
 import { Header } from '@/components/ui/header';
 import { SectionHeader } from '@/components/ui/section-header';
 import { useTheme } from '@/hooks/use-theme';
-import { guidedCatalog } from '@/activities/catalog';
 import { exercisesCatalog } from '@/data/exercises';
 
 /**
- * The four things a person can do in NOVEN, on one screen.
+ * The activities a person can do in NOVEN, on one screen.
  *
  * DESIGN INTENT
  * These used to be four separate bottom tabs, side by side with Home and
@@ -24,9 +23,9 @@ import { exercisesCatalog } from '@/data/exercises';
  * person can *do* lives here instead. Adding a new kind of activity later adds a
  * card to this page and leaves the bar alone.
  *
- * The cards are ordered the way a day goes: move, stretch, settle, and check in.
+ * The cards are ordered the way a day goes: move, stretch, and settle.
  * Each one leads to the screen that already existed, so nothing about Exercise,
- * Yoga, Meditation or Wellness changes here — the only honest thing to say about
+ * Yoga or Meditation changes here — the only honest thing to say about
  * a section is what it actually offers, which is now counted from the real
  * catalogues at the bottom of this page rather than promised in a subtitle.
  */
@@ -67,18 +66,6 @@ const ACTIVITIES = [
       web: 'spa',
     } as const,
   },
-  {
-    name: 'wellness',
-    title: 'Wellness',
-    description: 'Small things to do today, under two minutes',
-    rightLabel: 'Open',
-    tint: 'accent' as const,
-    icon: {
-      ios: 'heart',
-      android: 'favorite',
-      web: 'favorite',
-    } as const,
-  },
 ] as const;
 
 export default function ActivitiesScreen() {
@@ -90,7 +77,7 @@ export default function ActivitiesScreen() {
       {/*
         The "Choose what you would like to do today" subtitle and the "What you
         can do" section heading were both removed. The page title already says
-        Activities, and four cards titled Exercise, Yoga, Meditation and Wellness
+        Activities, and three cards titled Exercise, Yoga and Meditation
         need no introduction before they are understandable. The card titles and
         descriptions are kept: those are the labels the user is choosing between,
         not commentary about them.
@@ -144,12 +131,6 @@ export default function ActivitiesScreen() {
         description="Guided breathing for 1, 3 or 5 minutes"
         rightLabel="Open"
         onPress={() => router.push('/meditation')}
-      />
-      <ActivityCard
-        title="Wellness activities"
-        description={`${guidedCatalog('wellness').length} small things to do today.`}
-        rightLabel="Open"
-        onPress={() => router.push('/wellness')}
       />
     </Screen>
   );

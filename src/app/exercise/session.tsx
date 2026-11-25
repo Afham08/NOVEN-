@@ -1,5 +1,7 @@
+import { MovementScoreCard } from '@/components/session/movement-score-card';
+import { averageScore } from '@/exercise/movement-score';
 import { Camera } from 'expo-camera';
-import { useLocalSearchParams, useRouter } from 'expo-router';
+import { useFocusEffect, useLocalSearchParams, useRouter } from 'expo-router';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { AppState, Linking, PermissionsAndroid, Platform, StyleSheet, Text, View, useWindowDimensions } from 'react-native';
 
@@ -29,7 +31,8 @@ import {
   stopSessionOnPoseTrackerFailure,
   type PoseTrackerFailure,
 } from '@/exercise/pose-tracker-recovery';
-import { createExpoSpeechSink, VoiceFeedbackController } from '@/exercise/voice-feedback';
+import { RecordedExerciseVoice } from '@/exercise/recorded-voice';
+import { createExerciseClipSink } from '@/exercise/recorded-voice-audio';
 import { useTheme } from '@/hooks/use-theme';
 
 type HudState = {
@@ -61,6 +64,7 @@ function SessionScreen({ onRetry }: { onRetry: () => void }) {
   });
 
   // 3 Sets x 10 Reps Tracking State
+  const [repScores, setRepScores] = useState<(number | null)[]>([]);
   const [currentSet, setCurrentSet] = useState(1);
   const [repsInSet, setRepsInSet] = useState(0);
   const [showRepPopup, setShowRepPopup] = useState(false);
@@ -132,32 +136,30 @@ function SessionScreen({ onRetry }: { onRetry: () => void }) {
    * never speak into a screen that has already navigated away: after unmount the
    * ref is null and the controller it pointed at is disposed.
    */
-  const voiceRef = useRef<VoiceFeedbackController | null>(null);
+  const voiceRef = useRef<RecordedExerciseVoice | null>(null);
   const [voiceEnabled, setVoiceEnabled] = useState(true);
 
   useEffect(() => {
-    const voice = new VoiceFeedbackController(createExpoSpeechSink(), exercise?.countUnit, exercise?.cameraHint);
+    const voice = new RecordedExerciseVoice(createExerciseClipSink(), exercise?.id ?? '', holdSeconds);
     voiceRef.current = voice;
-    // Spoken once on open, while the user is still beside the phone and can act
-    // on it. This is the only place the setup copy is spoken.
     voice.announceSetup();
+    return () => { voice.dispose(); voiceRef.current = null; };
+  }, [exercise?.id, holdSeconds]);
+
+  useFocusEffect(useCallback(() => {
+    voiceRef.current?.setActive(AppState.currentState === 'active');
+    const subscription = AppState.addEventListener('change', state => {
+      voiceRef.current?.setActive(state === 'active');
+    });
     return () => {
-      voiceRef.current?.dispose();
-      voiceRef.current = null;
+      subscription.remove();
+      voiceRef.current?.setActive(false);
     };
-  }, [exercise?.countUnit, exercise?.cameraHint]);
+  }, []));
 
   const toggleVoice = () => {
-    if (voiceEnabled) {
-      voiceRef.current?.dispose();
-      voiceRef.current = null;
-      setVoiceEnabled(false);
-      return;
-    }
-    const voice = new VoiceFeedbackController(createExpoSpeechSink(), exercise?.countUnit, exercise?.cameraHint);
-    voiceRef.current = voice;
-    voice.announceSetup();
-    setVoiceEnabled(true);
+    voiceRef.current?.setMuted(voiceEnabled);
+    setVoiceEnabled(!voiceEnabled);
   };
 
   /**
@@ -287,25 +289,26 @@ function SessionScreen({ onRetry }: { onRetry: () => void }) {
       const result = engine.handlePoseFrame(event);
       setSeconds(result.elapsedSeconds);
       updateHud(result);
-      // Speech is handed the engine's own decision rather than the rendered HUD
-      // value, and the controller decides whether that decision is worth saying.
-      voiceRef.current?.onFrame(result);
-
+      let heldSeconds = 0;
       // Hold countdown tracking (3-second hold then prompt release)
       if (holdSeconds > 0 && result.feedback.kind === 'hold') {
         if (holdStartTimeRef.current === null) {
           holdStartTimeRef.current = event.nativeEvent.timestampMs;
         }
         const elapsed = Math.max(0, (event.nativeEvent.timestampMs - holdStartTimeRef.current) / 1000);
+        heldSeconds = elapsed;
         setHoldDuration(elapsed);
       } else if (result.feedback.kind !== 'return') {
         holdStartTimeRef.current = null;
         setHoldDuration(0);
       }
 
+      voiceRef.current?.onFrame(result, heldSeconds);
+
       // Trigger massive green rep popup and structured sets/reps
       if (result.reps > lastRepsRef.current || result.repCompletedThisFrame) {
         lastRepsRef.current = result.reps;
+        setRepScores(engine.repScores);
         holdStartTimeRef.current = null;
         setHoldDuration(0);
         triggerRepCelebration();
@@ -314,8 +317,13 @@ function SessionScreen({ onRetry }: { onRetry: () => void }) {
         setCurrentSet(completedSet ? Math.min(3, completedReps / 10) : Math.min(3, Math.floor(completedReps / 10) + 1));
         setRepsInSet(completedSet ? 10 : completedReps % 10);
         if (completedSet) {
-          if (completedReps >= 30) setIsWorkoutComplete(true);
-          else setIsSetResting(true);
+          if (completedReps >= 30) {
+            setIsWorkoutComplete(true);
+            voiceRef.current?.announceCompletion();
+          } else {
+            setIsSetResting(true);
+            voiceRef.current?.announcePause();
+          }
           updateHud(engine.pause());
           goToPhase('paused');
         }
@@ -332,6 +340,7 @@ function SessionScreen({ onRetry }: { onRetry: () => void }) {
 
       // end() is terminal and freezes active time/reps immediately. The error
       // phase also drops any queued native frames before they reach the engine.
+      voiceRef.current?.setActive(false);
       setTrackingFailure(failure);
       setSeconds(engine?.elapsedSeconds ?? 0);
       goToPhase('tracking-error');
@@ -361,6 +370,7 @@ function SessionScreen({ onRetry }: { onRetry: () => void }) {
     // the new session is not swallowed by a cooldown.
     voiceRef.current?.reset();
     setSeconds(0);
+    setRepScores([]);
     holdStartTimeRef.current = null;
     setHoldDuration(0);
     setHud({ reps: 0, feedback: setupFeedback() });
@@ -420,9 +430,8 @@ function SessionScreen({ onRetry }: { onRetry: () => void }) {
     failureGate.deactivate();
     engine?.end();
     goToPhase('completed');
-    // Announced before navigating. The controller is terminal from here, so this
-    // is the last thing ever spoken for this session.
-    voiceRef.current?.announceCompletion(metrics.reps);
+    // Result owns the finish clip so navigation cannot cut it off.
+    voiceRef.current?.stop();
 
     // Record the finished session so it can be seen again from the home screen.
     // This is the only save site and it remains below the terminal guard, so an
@@ -435,6 +444,7 @@ function SessionScreen({ onRetry }: { onRetry: () => void }) {
       exerciseName: exercise.name,
       completedAt: new Date().toISOString(),
       metrics,
+      movementScores: { version: 1, reps: engine?.repScores ?? [] },
     });
 
     // The tracker absorbs write failures and exposes the eventual outcome to the
@@ -446,6 +456,7 @@ function SessionScreen({ onRetry }: { onRetry: () => void }) {
       params: {
         id: exercise.id,
         recordId,
+        completionVoice: voiceEnabled && metrics.reps < 30 ? 'on' : 'off',
         reps: String(metrics.reps),
         duration: formatDurationLabel(metrics.durationSeconds),
         pace: formatPaceLabel(metrics.paceRpm),
@@ -541,12 +552,15 @@ function SessionScreen({ onRetry }: { onRetry: () => void }) {
       */}
       <View style={desktop ? styles.desktopStage : undefined}>
       {desktop && (
+        <View style={styles.desktopRightColumn}>
         <Card variant="surface" padding="medium" style={styles.sidePanel}>
           <SessionTimer seconds={seconds} phase={phase} suggestedSeconds={exercise.durationSeconds} />
           <Text style={[styles.metricLabel, { color: theme.textSecondary }]}>Set {currentSet} of 3</Text>
           <Text style={[styles.metricValue, { color: theme.heading }]}>{repsInSet} / 10</Text>
           <Text style={[styles.metricLabel, { color: theme.textSecondary }]}>{countLabel}</Text>
         </Card>
+        <MovementScoreCard scores={repScores} setNumber={currentSet} walking={exercise.countUnit === 'step'} />
+        </View>
       )}
       {hasCameraPermission ? (
         <View style={[styles.cameraFrame, desktop && styles.desktopCamera, { backgroundColor: theme.cameraSurface, borderColor: theme.glassBorder, shadowColor: theme.shadow }]}>
@@ -590,6 +604,8 @@ function SessionScreen({ onRetry }: { onRetry: () => void }) {
         </View>
       )}
       </View>
+
+      {!desktop && <MovementScoreCard scores={repScores} setNumber={currentSet} walking={exercise.countUnit === 'step'} />}
 
       {!desktop && <View style={styles.sessionTools}>
         <Button
@@ -642,6 +658,7 @@ function SessionScreen({ onRetry }: { onRetry: () => void }) {
       {isSetResting && (
         <Card variant="surface" padding="medium" style={styles.restCard}>
           <Text style={[styles.restTitle, { color: theme.heading }]}>Set {currentSet} complete</Text>
+          <Text style={[Type.heading, { color: theme.accentStrong }]}>Average score · {averageScore(repScores.slice((currentSet - 1) * 10, currentSet * 10)) ?? '—'} / 100</Text>
           <Text style={[styles.restSubtitle, { color: theme.textSecondary }]}>
             Take a moment to rest and catch your breath.
           </Text>
@@ -658,6 +675,7 @@ function SessionScreen({ onRetry }: { onRetry: () => void }) {
       {isWorkoutComplete && (
         <Card variant="surface" padding="medium" style={styles.restCard}>
           <Text style={[styles.restTitle, { color: theme.heading }]}>All sets complete</Text>
+          <MovementScoreCard scores={repScores} summary walking={exercise.countUnit === 'step'} />
           <Text style={[styles.restSubtitle, { color: theme.textSecondary }]}>
             Fantastic job! You completed all 30 {countLabel.toLowerCase()} today.
           </Text>
