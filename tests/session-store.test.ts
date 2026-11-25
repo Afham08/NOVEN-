@@ -625,7 +625,7 @@ export function run(): void {
     check('an undatable record has no label', dayLabel('not a date', now) === null);
   });
 
-  suite('session history UI: the wording stays plain and scores nothing', () => {
+  suite('session history UI: movement scores use plain, non-clinical wording', () => {
     const nodeRequire = require as unknown as (id: string) => {
       readFileSync(path: string, encoding: 'utf8'): string;
       resolve(...segments: string[]): string;
@@ -644,10 +644,11 @@ export function run(): void {
     // scans the whole comment-stripped file, not just string literals, so a
     // clinical term cannot reappear in a formatted value either.
     const banned = [
-      'accuracy', 'score', 'health', 'healthy', 'recovery', 'performance',
+      'accuracy', 'health', 'healthy', 'recovery', 'performance',
       'diagnos', 'patient', 'therapy', 'rehab', 'quality', 'grade', 'level',
       'calorie', 'target', 'goal', 'improvement', 'symptom', 'clinical',
     ];
+    check('set averages come from persisted movement scores', code.includes('scoreSets(record.movementScores.reps)'));
     for (const word of banned) {
       check(
         `the history screen never says "${word}"`,

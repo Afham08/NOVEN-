@@ -1,5 +1,9 @@
-import { useLocalSearchParams, useRouter } from 'expo-router';
-import { useEffect, useRef, useState } from 'react';
+import { MovementScoreCard } from '@/components/session/movement-score-card';
+import { sessionStore } from '@/exercise/session-storage';
+import type { MovementScores } from '@/exercise/movement-score';
+import { createExerciseClipSink } from '@/exercise/recorded-voice-audio';
+import { useFocusEffect, useLocalSearchParams, useRouter } from 'expo-router';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { StyleSheet, Text, View } from 'react-native';
 
 import { Screen } from '@/components/layout/screen';
@@ -21,7 +25,7 @@ import { leaveExerciseResult } from '@/exercise/result-exit';
 import { sessionSaveStatusTracker, type SessionHistorySaveStatus } from '@/exercise/session-save-status';
 
 export default function ResultScreen() {
-  const { id, reps, duration, pace, range, consistency, recordId } = useLocalSearchParams<{
+  const { id, reps, duration, pace, range, consistency, recordId, completionVoice } = useLocalSearchParams<{
     id?: string;
     reps?: string;
     duration?: string;
@@ -29,10 +33,13 @@ export default function ResultScreen() {
     range?: string;
     consistency?: string;
     recordId?: string;
+    completionVoice?: string;
   }>();
   const router = useRouter();
   const theme = useTheme();
   const exercise = getExerciseById(id);
+  const [loadedScores, setLoadedScores] = useState<{ id: string; scores: MovementScores | null } | null>(null);
+  const movementScores = loadedScores && loadedScores.id === recordId ? loadedScores.scores : null;
   const [historySaveStatus, setHistorySaveStatus] = useState<SessionHistorySaveStatus | null>(null);
 
   useEffect(() => {
@@ -40,10 +47,27 @@ export default function ResultScreen() {
     return sessionSaveStatusTracker.subscribe(recordId, setHistorySaveStatus);
   }, [recordId]);
 
+  useEffect(() => {
+    let active = true;
+    if (recordId) void sessionStore.getSessions().then(records => {
+      const saved = records.find(record => record.id === recordId && record.exerciseId === id);
+      if (active) setLoadedScores({ id: recordId, scores: saved?.movementScores ?? null });
+    }).catch(() => {});
+    return () => { active = false; };
+  }, [recordId, id, historySaveStatus]);
+
   // `reps` crosses the navigation boundary as an untrusted string, so it is
   // re-validated here rather than coerced blindly. 0 is a real result; "abc",
   // "-1", "3.7" and "NaN" are not.
   const repCount = parseRepCountParam(reps);
+  const completionPlayed = useRef(false);
+  useFocusEffect(useCallback(() => {
+    if (completionPlayed.current || completionVoice !== 'on' || !exercise || repCount === null) return;
+    completionPlayed.current = true;
+    const audio = createExerciseClipSink();
+    audio.play('complete');
+    return () => audio.stop();
+  }, [completionVoice, exercise, repCount]));
 
   /**
    * Leaving is one-shot, so a double tap cannot stack two navigations. The ref
@@ -143,6 +167,8 @@ export default function ResultScreen() {
         range, described without naming a body part, so the screen reads the same
         way for any exercise.
       */}
+      {movementScores && <MovementScoreCard scores={movementScores.reps} summary walking={exercise.countUnit === 'step'} />}
+
       <Card variant="surface" gap={Spacing.four}>
         <InfoRow stacked label="Time" value={parseDurationParam(duration)} />
         <InfoRow stacked label="Movement pace" value={formatPaceParamLabel(pace)} />

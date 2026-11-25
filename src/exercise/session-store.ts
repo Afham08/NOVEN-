@@ -1,6 +1,7 @@
 import { findAsana } from '../yoga/asanas';
 import { isYogaResult, type YogaResult } from '../yoga/session';
 import type { SessionMetrics } from './types';
+import { parseMovementScores, type MovementScores } from './movement-score';
 
 /**
  * ============================================================================
@@ -18,7 +19,7 @@ import type { SessionMetrics } from './types';
  * module-level array, so it reset on every app launch, and it persisted an
  * invented 0-100 `score` pulled from a mock analysis module rather than any
  * real measurement. This module stores the real `SessionMetrics` and survives a
- * restart. It invents nothing and scores nothing.
+ * restart. Optional versioned movement scores now store measurements from completed reps.
  *
  * WHY THE STORAGE IS INJECTED
  * `KeyValueStore` is the only thing this file needs from a device, so the whole
@@ -29,7 +30,7 @@ import type { SessionMetrics } from './types';
  *
  * WHAT IS DELIBERATELY NOT STORED
  * No camera frames, landmarks, angles-per-frame, readiness phases or detector
- * state. Only the finished summary. The full pose stream is not persisted
+ * state. Only the finished summary and per-rep numeric movement scores. The full pose stream is not persisted
  * anywhere in the app, and adding it would be a privacy and storage problem for
  * no benefit to a history list.
  *
@@ -88,6 +89,7 @@ export function isSessionKind(value: unknown): value is SessionKind {
  * not measure them and the store must not imply otherwise.
  */
 export type SessionRecord = SessionMetrics & {
+  movementScores?: MovementScores;
   id: string;
   exerciseId: string;
   exerciseName: string;
@@ -128,6 +130,7 @@ export type KeyValueStore = {
  * session produces exactly the record shape it always did.
  */
 export type NewSessionRecord = {
+  movementScores?: MovementScores;
   id: string;
   exerciseId: string;
   exerciseName: string;
@@ -169,6 +172,7 @@ export function createSessionRecord(input: NewSessionRecord): SessionRecord {
     rangeMinDeg: metrics.rangeMinDeg,
     rangeMaxDeg: metrics.rangeMaxDeg,
     consistencyPct: metrics.consistencyPct,
+    ...(input.movementScores ? { movementScores: { version: 1 as const, reps: [...input.movementScores.reps] } } : {}),
     // Spread rather than assigned conditionally: a key present with the value
     // `undefined` would still be written to disk by JSON.stringify as absent, but
     // it would also make `'activityKind' in record` true, so the read side could
@@ -281,9 +285,12 @@ export function parseSessionRecord(value: unknown): SessionRecord | null {
   }
 
   const yoga = raw.yoga;
+  const movementScores = raw.movementScores === undefined ? undefined : parseMovementScores(raw.movementScores, reps);
+  if (movementScores === null || (movementScores && activityKind !== undefined && activityKind !== 'exercise')) return null;
   if (yoga !== undefined && (activityKind !== 'yoga' || !isYogaResult(yoga, findAsana(exerciseId)))) return null;
   return {
     ...(yoga !== undefined ? { yoga } : {}),
+    ...(movementScores ? { movementScores } : {}),
     id,
     exerciseId,
     exerciseName,

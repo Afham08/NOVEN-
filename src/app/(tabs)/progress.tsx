@@ -2,6 +2,7 @@ import { useRouter } from 'expo-router';
 
 import { useMemo, useState } from 'react';
 import { AnalyticsDashboard } from '@/components/progress/analytics-dashboard';
+import { MovementScoreProgress } from '@/components/progress/movement-score-progress';
 import { Choices, Note } from '@/components/progress/analytics-charts';
 import { dashboard, localDay, periods, type Period } from '@/exercise/dashboard';
 import { Screen } from '@/components/layout/screen';
@@ -43,6 +44,7 @@ export default function ProgressScreen() {
       pathname: '/exercise/result',
       params: {
         id: record.exerciseId,
+        recordId: record.id,
         reps: String(record.reps),
         duration: formatDurationLabel(record.durationSeconds),
         pace: formatPaceLabel(record.paceRpm),
@@ -59,6 +61,7 @@ export default function ProgressScreen() {
       {issue && <SessionHistoryLoadNotice issue={issue} onRetry={retry} />}
       {data ? <>
         <AnalyticsDashboard key={period} data={data} />
+        <MovementScoreProgress records={data.filtered} />
         <SectionHeader accent title="Session history" />
         {data.filtered.length ? <SessionHistory key={`history-${period}`} store={sessionStore} onOpenSession={openSession}
           limit={20} loadedRecords={data.filtered} /> : <Note>No sessions recorded in this period.</Note>}

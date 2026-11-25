@@ -10,6 +10,8 @@ import { SectionHeader } from '@/components/ui/section-header';
 import { Spacing, Type } from '@/constants/theme';
 import { describeDifficulty } from '@/data/exercise-format';
 import { exercisesCatalog, formatDuration, getExerciseById } from '@/data/exercises';
+import { localizedExerciseListCopy } from '@/data/exercise-locales';
+import { exerciseDetailCopy } from '@/data/exercise-detail-locales';
 import { formatConsistencyLabel, formatDurationLabel, formatPaceLabel, formatRangeLabel } from '@/exercise/metrics';
 import { isPoseTracked } from '@/exercise/pose-configs';
 import type { SessionRecord } from '@/exercise/session-store';
@@ -49,6 +51,7 @@ export default function ExerciseDetailScreen() {
       pathname: '/exercise/result',
       params: {
         id: record.exerciseId,
+        recordId: record.id,
         reps: String(record.reps),
         duration: formatDurationLabel(record.durationSeconds),
         pace: formatPaceLabel(record.paceRpm),
@@ -67,20 +70,27 @@ export default function ExerciseDetailScreen() {
     );
   }
 
-  const kn = language === 'kn';
-  const copy = (kn && exercise.kannada) || exercise;
+  const labels = {
+    en: { beginner: 'Beginner', intermediate: 'Intermediate', advanced: 'Advanced', min: 'min', how: 'How to do it', safety: 'Safety', sessions: 'Your sessions' },
+    kn: { beginner: 'ಸುಲಭ', intermediate: 'ಮಧ್ಯಮ', advanced: 'ಕಠಿಣ', min: 'ನಿಮಿಷ', how: 'ಮಾಡುವ ವಿಧಾನ', safety: 'ಸುರಕ್ಷತೆ', sessions: 'ನಿಮ್ಮ ಅವಧಿಗಳು' },
+    hi: { beginner: 'आसान', intermediate: 'मध्यम', advanced: 'कठिन', min: 'मिनट', how: 'कैसे करें', safety: 'सुरक्षा', sessions: 'आपके सत्र' },
+    ta: { beginner: 'எளிது', intermediate: 'நடுத்தரம்', advanced: 'கடினம்', min: 'நிமிடம்', how: 'செய்முறை', safety: 'பாதுகாப்பு', sessions: 'உங்கள் அமர்வுகள்' },
+  }[language];
+  const listCopy = localizedExerciseListCopy(exercise, language);
+  const details = language === 'kn' ? exercise.kannada : language === 'hi' || language === 'ta' ? exerciseDetailCopy[language][exercise.id] : undefined;
+  const copy = { ...exercise, ...listCopy, ...details };
   return (
     <Screen>
       <Header title={copy.name} />
       <Text style={[styles.meta, { color: theme.text }]}>
-        {copy.target} · {kn ? { beginner: 'ಸುಲಭ', intermediate: 'ಮಧ್ಯಮ', advanced: 'ಕಠಿಣ' }[exercise.difficulty] : describeDifficulty(exercise.difficulty)} ·{' '}
-        {kn ? `${Math.max(1, Math.round(exercise.durationSeconds / 60))} ನಿಮಿಷ` : formatDuration(exercise.durationSeconds)}
+        {copy.target} · {language === 'en' ? describeDifficulty(exercise.difficulty) : labels[exercise.difficulty]} ·{' '}
+        {language === 'en' ? formatDuration(exercise.durationSeconds) : `${Math.max(1, Math.round(exercise.durationSeconds / 60))} ${labels.min}`}
       </Text>
       <Text style={[styles.description, { color: theme.textSecondary }]}>
         {copy.description}
       </Text>
 
-      <SectionHeader accent title={kn ? 'ಮಾಡುವ ವಿಧಾನ' : 'How to do it'} />
+      <SectionHeader accent title={labels.how} />
       <Card variant="surface" gap={Spacing.four}>
         {copy.instructions.map((instruction, index) => (
           <View key={index} style={styles.stepRow}>
@@ -96,7 +106,7 @@ export default function ExerciseDetailScreen() {
 
       {copy.cameraHint && <Text style={[styles.description, { color: theme.textSecondary }]}>{copy.cameraHint}</Text>}
 
-      <SectionHeader accent title={kn ? 'ಸುರಕ್ಷತೆ' : 'Safety'} />
+      <SectionHeader accent title={labels.safety} />
       <Card variant="tint">
         <Text style={[styles.safetyText, { color: theme.text }]}>{copy.safetyNote}</Text>
       </Card>
@@ -109,7 +119,7 @@ export default function ExerciseDetailScreen() {
         live finish uses, and nothing in this section invents a number the
         session did not measure — a session with no pace shows no pace.
       */}
-      <SectionHeader accent title={kn ? 'ನಿಮ್ಮ ಅವಧಿಗಳು' : 'Your sessions'} />
+      <SectionHeader accent title={labels.sessions} />
       <SessionHistory
         store={sessionStore}
         onOpenSession={openSession}

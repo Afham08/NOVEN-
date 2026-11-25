@@ -17,7 +17,7 @@ export function duration(seconds: number) {
   if (seconds < 3600) return Math.floor(seconds / 60) + 'm';
   return Math.floor(seconds / 3600) + 'h ' + Math.floor(seconds % 3600 / 60) + 'm';
 }
-export type Bucket = { start: number; end: number; sessions: number; reps: number; seconds: number; scoreTotal: number; measured: number };
+export type Bucket = { start: number; end: number; sessions: number; reps: number; seconds: number; scoreTotal: number; measured: number; movementTotal: number; scoredReps: number };
 export function dashboard(records: SessionRecord[], period: Period, today: number) {
   const dated = records.map(record => ({ record, day: localDay(new Date(record.completedAt)) })).filter(row => row.day <= today);
   const earliest = dated.reduce((min, row) => Math.min(min, row.day), today);
@@ -25,7 +25,7 @@ export function dashboard(records: SessionRecord[], period: Period, today: numbe
   const start = today - days + 1;
   const span = Math.ceil(days / (days <= 30 ? days : 12));
   const buckets: Bucket[] = Array.from({ length: Math.ceil(days / span) }, (_, i) => ({
-    start: start + i * span, end: Math.min(today, start + (i + 1) * span - 1), sessions: 0, reps: 0, seconds: 0, scoreTotal: 0, measured: 0,
+    start: start + i * span, end: Math.min(today, start + (i + 1) * span - 1), sessions: 0, reps: 0, seconds: 0, scoreTotal: 0, measured: 0, movementTotal: 0, scoredReps: 0,
   }));
   const daily = new Map<number, number>();
   const kinds = new Map<string, number>();
@@ -49,6 +49,11 @@ export function dashboard(records: SessionRecord[], period: Period, today: numbe
     reps += record.reps;
     bucket.reps += record.reps;
     recordReps = Math.max(recordReps, record.reps);
+    for (const score of record.movementScores?.reps ?? []) {
+      if (score === null) continue;
+      bucket.movementTotal += score;
+      bucket.scoredReps++;
+    }
     if (record.consistencyPct !== null) {
       bucket.scoreTotal += record.consistencyPct;
       bucket.measured++;

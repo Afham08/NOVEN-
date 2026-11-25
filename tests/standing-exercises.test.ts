@@ -52,10 +52,12 @@ export function run() {
       feed(jointPose(config, rest), 12);
       check('both limbs completing one cycle count once', engine.reps === 1);
       check('joint range recorded', engine.repRanges.length === 1);
+      check('one score per physical rep, not per limb', engine.repScores.length === 1 && typeof engine.repScores[0] === 'number', engine.repScores);
       feed(jointPose(config, active), 8);
       engine.pause();
       feed(jointPose(config, rest), 12);
       check('interrupted cycle discarded', engine.reps === 1);
+      check('interrupted cycle adds no score', engine.repScores.length === 1);
     });
   }
 
@@ -166,6 +168,7 @@ export function run() {
       feed(feet(0, 0), 20);
       feed(feet(0.05, 0), 12);
       check('first placement counted once', engine.reps === 1);
+      check('walking gets measured placement score', engine.repScores.length === 1 && typeof engine.repScores[0] === 'number');
       feed(feet(0.05, 0.1), 12);
       check('opposite placement counted once', engine.reps === 2);
       check('no joint-angle measurement for walking', engine.observedRange === null);

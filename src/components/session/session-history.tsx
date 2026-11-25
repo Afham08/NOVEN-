@@ -1,3 +1,4 @@
+import { scoreSets } from '@/exercise/movement-score';
 import { useCallback, useRef, useState } from 'react';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 import { useFocusEffect } from 'expo-router';
@@ -267,6 +268,9 @@ function HistoryRow({
         {steadiness !== null ? (
           <Text style={[styles.detail, { color: theme.textSecondary }]}>{steadiness}</Text>
         ) : null}
+        {record.movementScores && <Text style={[styles.detail, { color: theme.accentStrong }]}>
+          {scoreSets(record.movementScores.reps).map(set => `Set ${set.set}${set.count < 10 ? ' (partial)' : ''}: ${set.average === null ? 'unscored' : `${set.average}/100`}`).join(' · ')}
+        </Text>}
       </Card>
     </Pressable>
   );

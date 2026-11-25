@@ -22,8 +22,7 @@ export default function HomeScreen() {
   const insets = useSafeAreaInsets();
   const target = useRef<View | null>(null);
   const { t, language } = useLanguage();
-  const kn = language === 'kn';
-  const activityFont = kn ? Fonts.sans : 'InterBold';
+  const activityFont = language === 'en' ? 'InterBold' : Fonts.sans;
   return (
     <GlassTarget.Provider value={target}>
     <View style={[styles.root, { backgroundColor: theme.background }]}>
@@ -38,10 +37,6 @@ export default function HomeScreen() {
             style={[styles.settings, { backgroundColor: theme.glass, borderColor: theme.glassBorder }]}>
             <SymbolView name={{ ios: dark ? 'sun.max' : 'moon', android: dark ? 'light_mode' : 'dark_mode', web: dark ? 'light_mode' : 'dark_mode' }} size={24} tintColor={theme.text} />
           </Pressable>
-          <Pressable accessibilityRole="button" accessibilityLabel={t('settings')} accessibilityHint={kn ? 'ಸೆಟ್ಟಿಂಗ್‌ಗಳನ್ನು ತೆರೆಯಿರಿ' : 'Open settings'} onPress={() => router.push('/settings')}
-            style={({ pressed }) => [styles.settings, { backgroundColor: theme.glass, borderColor: theme.glassBorder, opacity: pressed ? 0.6 : 1 }]}>
-            <SymbolView name={{ ios: 'gearshape', android: 'settings', web: 'settings' }} size={24} tintColor={theme.text} />
-          </Pressable>
         </View>
         <Image source={require('../../../assets/design/osmium-logo.png')} resizeMode="contain" style={[styles.brandLogo, { tintColor: theme.heading }]} accessibilityLabel="OSMIUM logo" />
         <Text accessibilityRole="header" style={[styles.wordmark,
@@ -49,10 +44,7 @@ export default function HomeScreen() {
             fontSize: wide ? 104 : 64, lineHeight: wide ? 112 : 74,
             letterSpacing: wide ? 0.4 : 0.2 }]}>{t('appName')}</Text>
         <View style={[styles.sectionHeading, wide && { marginTop: 22 }]}>
-          <Text style={[styles.sectionLabel, { fontFamily: activityFont, color: theme.text }]}>{kn ? 'ಚಟುವಟಿಕೆಗಳು' : 'Activities'}</Text>
-          <Pressable accessibilityRole="button" onPress={() => router.push('/activities')} style={styles.allActivities}>
-            <Text style={[styles.footerLink, { color: theme.text }]}>{kn ? 'ಎಲ್ಲವನ್ನೂ ನೋಡಿ' : 'View all'}</Text>
-          </Pressable>
+          <Text style={[styles.sectionLabel, { fontFamily: activityFont, color: theme.text }]}>{t('activities')}</Text>
         </View>
         <View style={[styles.panel, wide && { flexDirection: 'row' }]}>
           <HomeActivity title={t('exercise')} wide={wide} onPress={() => router.push('/exercise')}
@@ -77,7 +69,5 @@ const styles = StyleSheet.create({
     backgroundColor: '#FFFFFF80', justifyContent: 'center', alignItems: 'center' },
   sectionHeading: { marginTop: 18, marginBottom: 12, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 16 },
   sectionLabel: { color: '#38312B', fontFamily: 'InterBody', fontSize: 20, lineHeight: 28 },
-  allActivities: { minHeight: 48, justifyContent: 'center', paddingHorizontal: 4 },
-  footerLink: { fontFamily: Fonts.sans, color: '#4D443B', fontSize: 16, lineHeight: 24, fontWeight: '600' },
   panel: { gap: 20 },
 });

@@ -1,4 +1,6 @@
 import { awaitAllSuites, report } from './harness';
+import { run as runRecordedVoice } from './recorded-voice.test';
+import { run as runMovementScore } from './movement-score.test';
 
 import { run as runActivities } from './activities.test';
 import { run as runActivityFlow } from './activity-flow.test';
@@ -35,6 +37,8 @@ import { run as runSeatedYoga } from './seated-yoga.test';
 import { run as runYogaPoseRules } from './yoga-pose-rules.test';
 
 async function main(): Promise<void> {
+  runRecordedVoice();
+  runMovementScore();
   runActivities();
   runActivityFlow();
   runBreathCycle();

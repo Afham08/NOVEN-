@@ -25,20 +25,21 @@ export function Choices<T extends string>({ items, value, change }: { items: rea
 
 export function Trend({ data }: { data: DashboardData }) {
   const t = useTheme();
-  const [metric, setMetric] = useState<'Sessions' | 'Time' | 'Rep similarity'>('Sessions');
+  const [metric, setMetric] = useState<'Sessions' | 'Time' | 'Rep similarity' | 'Movement score'>('Sessions');
   const [index, setIndex] = useState(data.buckets.length - 1);
   const [width, setWidth] = useState(320);
   const values = data.buckets.map(b => metric === 'Sessions' ? b.sessions : metric === 'Time' ? b.seconds :
+    metric === 'Movement score' ? b.scoredReps ? Math.round(b.movementTotal / b.scoredReps) : null :
     b.measured ? Math.round(b.scoreTotal / b.measured) : null);
-  const max = metric === 'Rep similarity' ? 100 : Math.max(1, ...values.map(v => v ?? 0));
-  const valueLabel = (v: number) => metric === 'Time' ? duration(v) : metric === 'Sessions' ? quantity(v, 'session') : v+'% rep range similarity';
+  const max = metric === 'Rep similarity' || metric === 'Movement score' ? 100 : Math.max(1, ...values.map(v => v ?? 0));
+  const valueLabel = (v: number) => metric === 'Time' ? duration(v) : metric === 'Sessions' ? quantity(v, 'session') : metric === 'Movement score' ? v+' / 100 movement score' : v+'% rep range similarity';
   const x = (i: number) => values.length === 1 ? width / 2 : 42 + i / (values.length - 1) * (width - 50);
   const y = (v: number) => 110 - v / max * 95;
   const path = values.map((v,i) => v === null ? '' : ((i === 0 || values[i-1] === null) ? 'M' : 'L') + x(i) + ' ' + y(v)).join(' ');
   const selected = Math.min(index, values.length - 1);
   const bucket = data.buckets[selected], value = values[selected];
   return <Panel title="Activity over time">
-    <Choices items={['Sessions','Time','Rep similarity']} value={metric} change={setMetric} />
+    <Choices items={['Sessions','Time','Movement score','Rep similarity']} value={metric} change={setMetric} />
     <Note>{dateLabel(bucket.start)}{bucket.end !== bucket.start && ' – '+dateLabel(bucket.end)} · {value === null ? 'No measured exercise' : valueLabel(value)}</Note>
     <View onLayout={e => setWidth(Math.max(32,e.nativeEvent.layout.width))}>
       <Svg height={120} width="100%">

@@ -1,7 +1,7 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import React, { createContext, useContext, useEffect, useState, useMemo, useRef } from 'react';
 
-export type Language = 'en' | 'kn';
+export type Language = 'en' | 'kn' | 'hi' | 'ta';
 
 export const TRANSLATIONS = {
   en: {
@@ -21,6 +21,13 @@ export const TRANSLATIONS = {
     currentLanguage: 'Current language',
     english: 'English',
     kannada: 'ಕನ್ನಡ',
+    hindi: 'हिन्दी',
+    tamil: 'தமிழ்',
+    activities: 'Activities',
+    watchDemo: 'Watch demo',
+    setsOfTen: '3 sets of 10',
+    repsUnit: 'reps',
+    stepsUnit: 'steps',
     light: 'Light',
     dark: 'Dark',
     system: 'Same as my phone',
@@ -58,6 +65,13 @@ export const TRANSLATIONS = {
     currentLanguage: 'ಪ್ರಸ್ತುತ ಭಾಷೆ',
     english: 'English',
     kannada: 'ಕನ್ನಡ',
+    hindi: 'हिन्दी',
+    tamil: 'தமிழ்',
+    activities: 'ಚಟುವಟಿಕೆಗಳು',
+    watchDemo: 'ಮುನ್ನೋಟ',
+    setsOfTen: '3 ಸೆಟ್‌ಗಳು (ತಲಾ 10)',
+    repsUnit: 'ಪುನರಾವರ್ತನೆಗಳು',
+    stepsUnit: 'ಹೆಜ್ಜೆಗಳು',
     light: 'ತಿಳಿ ಬಣ್ಣ',
     dark: 'ಗಾಢ ಬಣ್ಣ',
     system: 'ಫೋನ್ ಸೆಟ್ಟಿಂಗ್‌ನಂತೆ',
@@ -77,6 +91,30 @@ export const TRANSLATIONS = {
     repCelebration: '+1 ಪುನರಾವರ್ತನೆ!',
     set: 'ಸೆಟ್',
     reps: 'ಪುನರಾವರ್ತನೆಗಳು',
+  },
+  hi: {
+    appName: 'OSMIUM', welcomeHome: 'स्वागत है', exercise: 'व्यायाम', yoga: 'योग', meditation: 'ध्यान',
+    start: 'शुरू करें', preview: 'पूर्वावलोकन', home: 'होम', progress: 'प्रगति', family: 'परिवार',
+    settings: 'सेटिंग्स', appearance: 'दिखावट', language: 'भाषा', currentLanguage: 'वर्तमान भाषा',
+    english: 'English', kannada: 'ಕನ್ನಡ', hindi: 'हिन्दी', tamil: 'தமிழ்',
+    activities: 'गतिविधियाँ', watchDemo: 'डेमो देखें', setsOfTen: '3 सेट (प्रत्येक में 10)',
+    repsUnit: 'दोहराव', stepsUnit: 'कदम', light: 'हल्का', dark: 'गहरा', system: 'फ़ोन जैसा', selected: 'चयनित',
+    todaysExercises: 'आज के व्यायाम', exerciseSubtitle: 'निर्देश देखने और शुरू करने के लिए व्यायाम चुनें।',
+    seatedKneeExtension: 'बैठकर घुटना सीधा करना', seatedArmRaise: 'बैठकर हाथ उठाना', sitToStand: 'बैठकर खड़े होना',
+    startExercise: 'व्यायाम शुरू करें', close: 'बंद करें', ready: 'तैयार', steadyPace: 'स्थिर गति',
+    hold: 'रोकें', release: 'छोड़ें', greatJob: 'बहुत अच्छा!', repCelebration: '+1 दोहराव!', set: 'सेट', reps: 'दोहराव',
+  },
+  ta: {
+    appName: 'OSMIUM', welcomeHome: 'வரவேற்கிறோம்', exercise: 'உடற்பயிற்சி', yoga: 'யோகா', meditation: 'தியானம்',
+    start: 'தொடங்கு', preview: 'முன்னோட்டம்', home: 'முகப்பு', progress: 'முன்னேற்றம்', family: 'குடும்பம்',
+    settings: 'அமைப்புகள்', appearance: 'தோற்றம்', language: 'மொழி', currentLanguage: 'தற்போதைய மொழி',
+    english: 'English', kannada: 'ಕನ್ನಡ', hindi: 'हिन्दी', tamil: 'தமிழ்',
+    activities: 'செயல்பாடுகள்', watchDemo: 'செய்முறை காணொளி', setsOfTen: '3 செட்கள் (தலா 10)',
+    repsUnit: 'முறை', stepsUnit: 'அடிகள்', light: 'வெளிர்', dark: 'இருள்', system: 'தொலைபேசி அமைப்புப்படி', selected: 'தேர்ந்தெடுக்கப்பட்டது',
+    todaysExercises: 'இன்றைய உடற்பயிற்சிகள்', exerciseSubtitle: 'வழிமுறைகளைப் பார்த்துத் தொடங்க ஒரு பயிற்சியைத் தேர்ந்தெடுக்கவும்.',
+    seatedKneeExtension: 'அமர்ந்து முழங்காலை நீட்டுதல்', seatedArmRaise: 'அமர்ந்து கைகளை உயர்த்துதல்', sitToStand: 'அமர்ந்து எழுதல்',
+    startExercise: 'பயிற்சியைத் தொடங்கு', close: 'மூடு', ready: 'தயார்', steadyPace: 'சீரான வேகம்',
+    hold: 'நிறுத்திப் பிடி', release: 'விடு', greatJob: 'நன்றாகச் செய்தீர்கள்!', repCelebration: '+1 முறை!', set: 'செட்', reps: 'முறைகள்',
   },
 } as const;
 
@@ -101,7 +139,7 @@ export function LanguageProvider({ children }: { children: React.ReactNode }) {
   useEffect(() => {
     let active = true;
     AsyncStorage.getItem(STORAGE_KEY).then((saved) => {
-      if (active && !userSelected.current && (saved === 'en' || saved === 'kn')) {
+      if (active && !userSelected.current && (saved === 'en' || saved === 'kn' || saved === 'hi' || saved === 'ta')) {
         setLanguageState(saved);
       }
     }).catch(() => {});
